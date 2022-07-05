@@ -1,0 +1,9 @@
+<library path="lib/libgt_traj_arbitration">
+  <class name="cnr/control/GTTrajArbitration"
+         type="cnr::control::GTTrajArbitration"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      The gt traj arbitration controller
+    </description>
+  </class>
+</library>

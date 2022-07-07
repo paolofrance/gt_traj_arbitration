@@ -290,6 +290,7 @@ bool GTTrajArbitration::doInit()
   nominal_h_wrench_pub_     = this->template add_publisher<geometry_msgs::WrenchStamped>("/nominal_h_wrench",5);
   current_pose_pub_         = this->template add_publisher<geometry_msgs::PoseStamped>  ("/current_pose",5);
   current_vel_pub_          = this->template add_publisher<geometry_msgs::TwistStamped> ("/current_velocity",5);
+  delta_pub_                = this->template add_publisher<geometry_msgs::TwistStamped> ("/delta_error",5);
   
   CNR_INFO(this->logger(),"intialized !!");
   CNR_RETURN_TRUE(this->logger());
@@ -380,6 +381,9 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   Eigen::Matrix<double,6,1> human_cartesian_error_actual_target_in_b;
   rosdyn::getFrameDistance(T_b_t, T_human_base_targetpose_ , human_cartesian_error_actual_target_in_b);
   
+  Eigen::Matrix<double,6,1> delta_error;
+  rosdyn::getFrameDistance(T_robot_base_targetpose_, T_human_base_targetpose_ , delta_error);
+  
   CNR_INFO_THROTTLE(this->logger(),1.0,RED<<"Human target: "<<human_cartesian_error_actual_target_in_b.transpose());
   CNR_INFO_THROTTLE(this->logger(),1.0,GREEN<<"Robot target: "<<robot_cartesian_error_actual_target_in_b.transpose());
   
@@ -459,16 +463,28 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   ps.pose = cp;  
   this->publish(current_pose_pub_,ps);
   
-  geometry_msgs::TwistStamped cv;
-  cv.header.stamp = stamp;
-  cv.twist.linear.x = cart_vel_of_t_in_b[0];
-  cv.twist.linear.y = cart_vel_of_t_in_b[1];
-  cv.twist.linear.z = cart_vel_of_t_in_b[2];
-  cv.twist.angular.x = cart_vel_of_t_in_b[3];
-  cv.twist.angular.y = cart_vel_of_t_in_b[4];
-  cv.twist.angular.z = cart_vel_of_t_in_b[5];
-  this->publish(current_vel_pub_,cv);
-  
+  {
+    geometry_msgs::TwistStamped cv;
+    cv.header.stamp = stamp;
+    cv.twist.linear.x = cart_vel_of_t_in_b[0];
+    cv.twist.linear.y = cart_vel_of_t_in_b[1];
+    cv.twist.linear.z = cart_vel_of_t_in_b[2];
+    cv.twist.angular.x = cart_vel_of_t_in_b[3];
+    cv.twist.angular.y = cart_vel_of_t_in_b[4];
+    cv.twist.angular.z = cart_vel_of_t_in_b[5];
+    this->publish(current_vel_pub_,cv);
+  }
+  {
+    geometry_msgs::TwistStamped cv;
+    cv.header.stamp = stamp;
+    cv.twist.linear.x = delta_error[0];
+    cv.twist.linear.y = delta_error[1];
+    cv.twist.linear.z = delta_error[2];
+    cv.twist.angular.x = delta_error[3];
+    cv.twist.angular.y = delta_error[4];
+    cv.twist.angular.z = delta_error[5];
+    this->publish(delta_pub_,cv);
+  }
   geometry_msgs::WrenchStamped human_w,robot_w;
   eigVecToWrenchMsg(human_wrench_ic,human_w.wrench);
   eigVecToWrenchMsg(robot_wrench_ic,robot_w.wrench);

@@ -150,6 +150,7 @@ protected:
   size_t nominal_h_wrench_pub_;
   size_t current_pose_pub_;
   size_t current_vel_pub_;
+  size_t delta_pub_;
   
   ros::Subscriber sub_;
 

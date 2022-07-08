@@ -128,6 +128,16 @@ bool GTTrajArbitration::eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_m
   return true;
 }
 
+bool GTTrajArbitration::eigToTwistMsgs(const Eigen::Vector6d& ev, geometry_msgs::TwistStamped& msg)
+{
+  msg.twist.linear.x  = ev[0];
+  msg.twist.linear.y  = ev[1];
+  msg.twist.linear.z  = ev[2];
+  msg.twist.angular.x = ev[3];
+  msg.twist.angular.y = ev[4];
+  msg.twist.angular.z = ev[5];
+  return true;
+}
 
 bool GTTrajArbitration::doInit()
 {
@@ -233,7 +243,7 @@ bool GTTrajArbitration::doInit()
   
   mask_ = getMask();
   
-  getSSMatrix(2,M_inv_,D_,K_,A_,B_);
+  getSSMatrix(n_dofs_,M_inv_,D_,K_,A_,B_);
   
   getWeightMatrix("Qhh",2*n_dofs_,Qhh_);
   getWeightMatrix("Qhr",2*n_dofs_,Qhr_);
@@ -249,6 +259,8 @@ bool GTTrajArbitration::doInit()
   alpha_=alpha;
   
   updateGTMatrices(alpha);
+  
+  CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
 
   CNR_INFO(this->logger(),CYAN<<"A\n"   << A_);
   CNR_INFO(this->logger(),CYAN<<"B\n"   << B_);
@@ -256,8 +268,8 @@ bool GTTrajArbitration::doInit()
   CNR_INFO(this->logger(),CYAN<<"Q_h\n" << Qh_);
   CNR_INFO(this->logger(),CYAN<<"Q_r\n" << Qr_);
   CNR_INFO(this->logger(),CYAN<<"R_Gt\n"<< R_gt_);
+  CNR_INFO(this->logger(),CYAN<<"K_gt\n"<< CGT_gain_);
   
-  CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
   
   w_b_init_ = false;
   first_cycle_ = true;  
@@ -280,9 +292,7 @@ bool GTTrajArbitration::doInit()
     Kh_nc_ = Rh_.inverse()*B_single.transpose()*Ph_nc;
     Kr_nc_ = Rr_.inverse()*B_single.transpose()*Pr_nc;
   }
-  
-  CNR_INFO(this->logger(),"cgt_gain\n"<<CGT_gain_);
-  
+    
   filtered_wrench_base_pub_ = this->template add_publisher<geometry_msgs::WrenchStamped>("/filtered_wrench_base",5);
   wrench_base_pub_          = this->template add_publisher<geometry_msgs::WrenchStamped>("/wrench_base",5);
   wrench_tool_pub_          = this->template add_publisher<geometry_msgs::WrenchStamped>("/wrench_tool",5);
@@ -387,17 +397,24 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   CNR_INFO_THROTTLE(this->logger(),1.0,RED<<"Human target: "<<human_cartesian_error_actual_target_in_b.transpose());
   CNR_INFO_THROTTLE(this->logger(),1.0,GREEN<<"Robot target: "<<robot_cartesian_error_actual_target_in_b.transpose());
   
+  if(alpha_<=0.1 || alpha_>=0.9)
+    CNR_ERROR(this->logger(),"alpha out of bounds: "<<alpha_);
+    
+  
   updateGTMatrices(alpha_);
   CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
   
   
   
-  rosdyn::VectorXd reference  (n_dofs_); reference  .setZero();
-  rosdyn::VectorXd reference_h(n_dofs_); reference_h.setZero();
-  rosdyn::VectorXd reference_r(n_dofs_); reference_r.setZero();
+  
+  rosdyn::VectorXd reference  ; reference  .resize(2*n_dofs_); reference  .setZero();
+  rosdyn::VectorXd reference_h; reference_h.resize(2*n_dofs_); reference_h.setZero();
+  rosdyn::VectorXd reference_r; reference_r.resize(2*n_dofs_); reference_r.setZero();
   
   reference_h.segment(0,n_dofs_) = human_cartesian_error_actual_target_in_b.segment(0,n_dofs_);
+  reference_h.segment(n_dofs_,n_dofs_) = cart_vel_of_t_in_b.segment(0,n_dofs_);
   reference_r.segment(0,n_dofs_) = robot_cartesian_error_actual_target_in_b.segment(0,n_dofs_);
+  reference_r.segment(n_dofs_,n_dofs_) = cart_vel_of_t_in_b.segment(0,n_dofs_);
   
   reference = Q_gt_.inverse() * (Qh_*reference_h+Qr_*reference_r);
   
@@ -424,6 +441,7 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   
   Eigen::Vector6d human_wrench_ic = mask_.cwiseProduct(wrench);
   Eigen::Vector6d robot_wrench_ic; robot_wrench_ic.setZero(); robot_wrench_ic.segment(0,n_dofs_) = control;
+  
   
   CNR_INFO_THROTTLE(this->logger(),1.0, RED  <<"human_wrench_ic: " <<human_wrench_ic.transpose() );
   CNR_INFO_THROTTLE(this->logger(),1.0, GREEN<<"robot_wrench_ic: " <<robot_wrench_ic.transpose() );
@@ -466,23 +484,25 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   {
     geometry_msgs::TwistStamped cv;
     cv.header.stamp = stamp;
-    cv.twist.linear.x = cart_vel_of_t_in_b[0];
-    cv.twist.linear.y = cart_vel_of_t_in_b[1];
-    cv.twist.linear.z = cart_vel_of_t_in_b[2];
-    cv.twist.angular.x = cart_vel_of_t_in_b[3];
-    cv.twist.angular.y = cart_vel_of_t_in_b[4];
-    cv.twist.angular.z = cart_vel_of_t_in_b[5];
+    eigToTwistMsgs(cart_vel_of_t_in_b,cv);
+//     cv.twist.linear.x = cart_vel_of_t_in_b[0];
+//     cv.twist.linear.y = cart_vel_of_t_in_b[1];
+//     cv.twist.linear.z = cart_vel_of_t_in_b[2];
+//     cv.twist.angular.x = cart_vel_of_t_in_b[3];
+//     cv.twist.angular.y = cart_vel_of_t_in_b[4];
+//     cv.twist.angular.z = cart_vel_of_t_in_b[5];
     this->publish(current_vel_pub_,cv);
   }
   {
     geometry_msgs::TwistStamped cv;
     cv.header.stamp = stamp;
-    cv.twist.linear.x = delta_error[0];
-    cv.twist.linear.y = delta_error[1];
-    cv.twist.linear.z = delta_error[2];
-    cv.twist.angular.x = delta_error[3];
-    cv.twist.angular.y = delta_error[4];
-    cv.twist.angular.z = delta_error[5];
+    eigToTwistMsgs(delta_error,cv);
+//     cv.twist.linear.x = delta_error[0];
+//     cv.twist.linear.y = delta_error[1];
+//     cv.twist.linear.z = delta_error[2];
+//     cv.twist.angular.x = delta_error[3];
+//     cv.twist.angular.y = delta_error[4];
+//     cv.twist.angular.z = delta_error[5];
     this->publish(delta_pub_,cv);
   }
   geometry_msgs::WrenchStamped human_w,robot_w;

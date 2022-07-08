@@ -174,8 +174,8 @@ protected:
   void setTargetJointsCallback    (const sensor_msgs::JointStateConstPtr&      msg );
   void setAlpha                   (const std_msgs_stamped::Float32StampedConstPtr&  msg );
   
-  
-  bool eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench& msg);
+  bool eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench&       msg);
+  bool eigToTwistMsgs   (const Eigen::Vector6d& ev , geometry_msgs::TwistStamped& msg);
   
   Eigen::MatrixXd solveRiccati( const Eigen::MatrixXd &A,
                                 const Eigen::MatrixXd &B,

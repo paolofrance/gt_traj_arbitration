@@ -81,14 +81,16 @@ protected:
   std::mutex m_mtx;
   
   double alpha_;
+  double alpha_max_;
+  double alpha_min_;
   
   ect::FilteredVectorXd wrench_fitler_;
 
-  rosdyn::VectorXd dq_sp_;
-  rosdyn::VectorXd q_sp_;
-  rosdyn::VectorXd ddq_;
-  rosdyn::VectorXd dq_;
-  rosdyn::VectorXd q_;
+  Eigen::VectorXd dq_sp_;
+  Eigen::VectorXd q_sp_;
+  Eigen::VectorXd ddq_;
+  Eigen::VectorXd dq_;
+  Eigen::VectorXd q_;
 
   geometry_msgs::PoseStamped robot_pose_sp_;
   geometry_msgs::PoseStamped human_pose_sp_;
@@ -151,6 +153,7 @@ protected:
   size_t current_pose_pub_;
   size_t current_vel_pub_;
   size_t delta_pub_;
+  size_t reference_pose_pub_;
   
   ros::Subscriber sub_;
 

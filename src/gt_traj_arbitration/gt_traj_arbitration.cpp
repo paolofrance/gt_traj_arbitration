@@ -162,7 +162,7 @@ bool GTTrajArbitration::doInit()
   R_gt_.resize(2*n_dofs_,2*n_dofs_);   R_gt_.setZero();
   
   CGT_gain_.resize(2*n_dofs_,2*n_dofs_); CGT_gain_.setZero();
-  P_       .resize(2*n_dofs_,2*n_dofs_); P_.setZero();
+  P_       .resize(2*n_dofs_,2*n_dofs_); P_       .setZero();
   
   //INIT PUB/SUB
   {
@@ -255,6 +255,8 @@ bool GTTrajArbitration::doInit()
   
   double alpha;
   GET_AND_DEFAULT( this->getControllerNh(), "alpha", alpha,0.5);
+  GET_AND_DEFAULT( this->getControllerNh(), "alpha_max", alpha_max_,0.95);
+  GET_AND_DEFAULT( this->getControllerNh(), "alpha_min", alpha_min_,0.05);
 
   alpha_=alpha;
   
@@ -301,6 +303,7 @@ bool GTTrajArbitration::doInit()
   current_pose_pub_         = this->template add_publisher<geometry_msgs::PoseStamped>  ("/current_pose",5);
   current_vel_pub_          = this->template add_publisher<geometry_msgs::TwistStamped> ("/current_velocity",5);
   delta_pub_                = this->template add_publisher<geometry_msgs::TwistStamped> ("/delta_error",5);
+  reference_pose_pub_       = this->template add_publisher<geometry_msgs::PoseStamped>  ("/gt_reference",5);
   
   CNR_INFO(this->logger(),"intialized !!");
   CNR_RETURN_TRUE(this->logger());
@@ -394,33 +397,28 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   Eigen::Matrix<double,6,1> delta_error;
   rosdyn::getFrameDistance(T_robot_base_targetpose_, T_human_base_targetpose_ , delta_error);
   
-  CNR_INFO_THROTTLE(this->logger(),1.0,RED<<"Human target: "<<human_cartesian_error_actual_target_in_b.transpose());
-  CNR_INFO_THROTTLE(this->logger(),1.0,GREEN<<"Robot target: "<<robot_cartesian_error_actual_target_in_b.transpose());
+  CNR_DEBUG_THROTTLE(this->logger(),1.0,RED<<"Human target: "<<human_cartesian_error_actual_target_in_b.transpose());
+  CNR_DEBUG_THROTTLE(this->logger(),1.0,GREEN<<"Robot target: "<<robot_cartesian_error_actual_target_in_b.transpose());
   
-  if(alpha_<=0.1 || alpha_>=0.9)
-    CNR_ERROR(this->logger(),"alpha out of bounds: "<<alpha_);
-    
   
   updateGTMatrices(alpha_);
   CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
   
   
-  
-  
-  rosdyn::VectorXd reference  ; reference  .resize(2*n_dofs_); reference  .setZero();
-  rosdyn::VectorXd reference_h; reference_h.resize(2*n_dofs_); reference_h.setZero();
-  rosdyn::VectorXd reference_r; reference_r.resize(2*n_dofs_); reference_r.setZero();
+  Eigen::VectorXd reference  ; reference  .resize(2*n_dofs_); reference  .setZero();
+  Eigen::VectorXd reference_h; reference_h.resize(2*n_dofs_); reference_h.setZero();
+  Eigen::VectorXd reference_r; reference_r.resize(2*n_dofs_); reference_r.setZero();
   
   reference_h.segment(0,n_dofs_) = human_cartesian_error_actual_target_in_b.segment(0,n_dofs_);
-  reference_h.segment(n_dofs_,n_dofs_) = cart_vel_of_t_in_b.segment(0,n_dofs_);
+  reference_h.segment(n_dofs_,n_dofs_) = Eigen::VectorXd::Zero(n_dofs_);
   reference_r.segment(0,n_dofs_) = robot_cartesian_error_actual_target_in_b.segment(0,n_dofs_);
-  reference_r.segment(n_dofs_,n_dofs_) = cart_vel_of_t_in_b.segment(0,n_dofs_);
+  reference_r.segment(n_dofs_,n_dofs_) = Eigen::VectorXd::Zero(n_dofs_);
   
-  reference = Q_gt_.inverse() * (Qh_*reference_h+Qr_*reference_r);
+  reference = Q_gt_.inverse() * (Qh_*reference_h + Qr_*reference_r);
   
-  CNR_INFO_THROTTLE(this->logger(),1.0,YELLOW<<"target reference: "<<reference.transpose());
+  CNR_DEBUG_THROTTLE(this->logger(),1.0,YELLOW<<"target reference: "<<reference.transpose());
   
-  rosdyn::VectorXd control(2*n_dofs_); control.setZero();
+  Eigen::VectorXd control(2*n_dofs_); control.setZero();
   switch(control_type)
   {
     case 0:
@@ -440,16 +438,40 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   }
   
   Eigen::Vector6d human_wrench_ic = mask_.cwiseProduct(wrench);
-  Eigen::Vector6d robot_wrench_ic; robot_wrench_ic.setZero(); robot_wrench_ic.segment(0,n_dofs_) = control;
+  Eigen::Vector6d robot_wrench_ic; robot_wrench_ic.setZero(); robot_wrench_ic.segment(0,n_dofs_) = control.segment(n_dofs_,n_dofs_);
   
   
-  CNR_INFO_THROTTLE(this->logger(),1.0, RED  <<"human_wrench_ic: " <<human_wrench_ic.transpose() );
-  CNR_INFO_THROTTLE(this->logger(),1.0, GREEN<<"robot_wrench_ic: " <<robot_wrench_ic.transpose() );
+  CNR_DEBUG_THROTTLE(this->logger(),1.0, RED  <<"human_wrench_ic: " <<human_wrench_ic.transpose() );
+  CNR_DEBUG_THROTTLE(this->logger(),1.0, GREEN<<"robot_wrench_ic: " <<robot_wrench_ic.transpose() );
   
   cart_acc_of_t_in_b = (M_inv_).cwiseProduct(
                         K_.cwiseProduct(cartesian_error_actual_target_in_b) +
                         D_.cwiseProduct(cart_target_vel_of_t_in_b-cart_vel_of_t_in_b) +
                         human_wrench_ic + robot_wrench_ic);
+  
+  
+  
+  
+//   reference = Q_gt_.inverse() * (Qh_*reference_h+Qr_*reference_r);
+//   
+//   rosdyn::VectorXd cgt_control =  -CGT_gain_*reference;
+//   
+//   rosdyn::VectorXd state(2*n_dofs_);
+//   state << cartesian_error_actual_target_in_b.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(n_dofs_,n_dofs_);
+//   
+//   rosdyn::VectorXd real_control; real_control.resize(2*n_dofs_);
+//   real_control << wrench.segment(0,n_dofs_),cgt_control.segment(n_dofs_,n_dofs_);
+//   
+//   Eigen::VectorXd dX = A_*state + B_*real_control;
+//   
+//   cart_vel_of_t_in_b.segment(0,n_dofs_) = dX.segment(0,n_dofs_);
+//   cart_acc_of_t_in_b.segment(0,n_dofs_) = dX.segment(n_dofs_,n_dofs_); 
+  
+  
+  
+  
+  
+  
   
   Eigen::Matrix6Xd J_b = chain_bt_->getJacobian(q_);
 
@@ -485,26 +507,31 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     geometry_msgs::TwistStamped cv;
     cv.header.stamp = stamp;
     eigToTwistMsgs(cart_vel_of_t_in_b,cv);
-//     cv.twist.linear.x = cart_vel_of_t_in_b[0];
-//     cv.twist.linear.y = cart_vel_of_t_in_b[1];
-//     cv.twist.linear.z = cart_vel_of_t_in_b[2];
-//     cv.twist.angular.x = cart_vel_of_t_in_b[3];
-//     cv.twist.angular.y = cart_vel_of_t_in_b[4];
-//     cv.twist.angular.z = cart_vel_of_t_in_b[5];
     this->publish(current_vel_pub_,cv);
   }
   {
     geometry_msgs::TwistStamped cv;
     cv.header.stamp = stamp;
     eigToTwistMsgs(delta_error,cv);
-//     cv.twist.linear.x = delta_error[0];
-//     cv.twist.linear.y = delta_error[1];
-//     cv.twist.linear.z = delta_error[2];
-//     cv.twist.angular.x = delta_error[3];
-//     cv.twist.angular.y = delta_error[4];
-//     cv.twist.angular.z = delta_error[5];
     this->publish(delta_pub_,cv);
   }
+  
+  {
+    geometry_msgs::PoseStamped ref;
+    ref.header.stamp = stamp;
+    
+    ref.pose.position.x = reference(0);
+    ref.pose.position.y = reference(1);
+    ref.pose.position.z = reference(2);
+    
+    ref.pose.orientation = ps.pose.orientation;
+    
+    this->publish(reference_pose_pub_,ref);
+  }
+  
+  
+  
+  
   geometry_msgs::WrenchStamped human_w,robot_w;
   eigVecToWrenchMsg(human_wrench_ic,human_w.wrench);
   eigVecToWrenchMsg(robot_wrench_ic,robot_w.wrench);
@@ -728,7 +755,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       }
       for (unsigned int iAx=0;iAx<q_sp_.rows();iAx++)
       {
-  //       CNR_INFO(this->logger(),"new joint setpoint recived");
         q_sp_(iAx)=tmp_msg.position.at(iAx);
         dq_sp_(iAx)=tmp_msg.velocity.at(iAx);
       }
@@ -743,6 +769,17 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   void GTTrajArbitration::setAlpha(const std_msgs_stamped::Float32StampedConstPtr& msg )
   {
     alpha_ = msg->data;
+    
+    if ( ( alpha_ > alpha_max_ ) )
+    {
+      alpha_ = alpha_max_ ;
+      CNR_INFO_THROTTLE(this->logger(),2.0,"saturating alpha to max: "<<alpha_);
+    }
+    else if ( alpha_ < alpha_min_  )
+    {
+      alpha_ = alpha_min_;
+      CNR_INFO_THROTTLE(this->logger(),2.0,"saturating alpha to min: "<<alpha_);
+    }    
   }
   
 

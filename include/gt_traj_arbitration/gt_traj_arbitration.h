@@ -21,40 +21,6 @@
 
 namespace ect = eigen_control_toolbox;
 
-
-template<typename T> class ObjFunc : public cppoptlib::Problem<T, 2> {
-  public:
-    using typename cppoptlib::Problem<T, 2>::TVector;
-    
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    
-    void setXi(Eigen::MatrixXd M) { xi = M;}
-    void setU (Eigen::MatrixXd M) { u  = M;}
-     
-    T value(const TVector &x) {
-      
-      double res = 0;
-      std::vector<double> lst;
-      
-      for (int j=0; j<xi.cols();j++)
-      {
-        lst.push_back(std::pow((x.transpose()*xi.col(j) + u.col(j)).norm(), 2.0));
-      }
-      
-      for (int i=0;i<lst.size();i++)
-        res += lst[i];
-      
-      return (res);
-      
-    }
-    
-  private:
-    Eigen::MatrixXd xi;
-    Eigen::MatrixXd u;
-   
-};
-
-
 namespace cnr
 {
 namespace control
@@ -75,6 +41,32 @@ public:
   bool doUpdate  (const ros::Time& time, const ros::Duration& period);
   bool doStarting(const ros::Time& time);
   bool doStopping(const ros::Time& time);
+  
+  enum Control
+  {
+    CGT   = 0
+    ,LQR  = 1
+    ,NCGT = 2
+    ,ICGT = 3
+  };
+  const std::map<std::string, GTTrajArbitration::Control> control_map_ = 
+  {
+    {"cgt"             ,GTTrajArbitration::Control::CGT}
+    ,{"cooperative"    ,GTTrajArbitration::Control::CGT}
+    ,{"lqr"            ,GTTrajArbitration::Control::LQR}
+    ,{"ncgt"           ,GTTrajArbitration::Control::NCGT}
+    ,{"non_cooperative",GTTrajArbitration::Control::NCGT}
+    ,{"inverse_cgt"    ,GTTrajArbitration::Control::ICGT}
+  }; 
+  const std::map<int, std::string> control_map_reverse_ = 
+  {
+    { 0 , "cgt"            }
+    ,{0 , "cooperative"    }
+    ,{1 , "lqr"            }
+    ,{2 , "ncgt"           }
+    ,{2 , "non_cooperative"}
+    ,{3 , "inverse_cgt"    }
+  }; 
 
 protected:
 
@@ -83,6 +75,7 @@ protected:
   double alpha_;
   double alpha_max_;
   double alpha_min_;
+  double alpha_switch_;
   
   ect::FilteredVectorXd wrench_fitler_;
 
@@ -100,6 +93,7 @@ protected:
   
   Eigen::MatrixXd A_;
   Eigen::MatrixXd B_;
+  Eigen::MatrixXd B_single_;
   
   Eigen::MatrixXd Qhh_;
   Eigen::MatrixXd Qhr_;
@@ -124,9 +118,12 @@ protected:
   Eigen::MatrixXd Kh_nc_ ;
   Eigen::MatrixXd Kr_nc_;
   
-  int control_type;
+  std::string control_type_;
+  std::string base_control_type_;
+  
   
   bool use_cartesian_reference_;
+  bool robot_active_;
 
   bool first_cycle_;
   int count_update_;
@@ -154,6 +151,7 @@ protected:
   size_t current_vel_pub_;
   size_t delta_pub_;
   size_t reference_pose_pub_;
+  size_t delta_W_pub_;
   
   ros::Subscriber sub_;
 
@@ -186,7 +184,7 @@ protected:
                                 const Eigen::MatrixXd &R,
                                       Eigen::MatrixXd &P) ;
   
-  void fbn( const Eigen::MatrixXd &A,
+  void solveNashEquilibrium( const Eigen::MatrixXd &A,
             const Eigen::MatrixXd &B1,
             const Eigen::MatrixXd &B2,
             const Eigen::MatrixXd &Q1,

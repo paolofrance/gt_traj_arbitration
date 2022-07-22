@@ -26,6 +26,7 @@
   <depend>message_generation</depend>
   <depend>message_runtime</depend>
   <depend>std_msgs_stamped</depend>
+  <depend>tf_conversions</depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
   std_msgs_stamped
+  tf_conversions
 )
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)

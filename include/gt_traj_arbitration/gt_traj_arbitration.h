@@ -37,6 +37,7 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   GTTrajArbitration();
+  ~GTTrajArbitration();
   bool doInit();
   bool doUpdate  (const ros::Time& time, const ros::Duration& period);
   bool doStarting(const ros::Time& time);
@@ -71,11 +72,18 @@ public:
 protected:
 
   std::mutex m_mtx;
+  std::mutex gains_mtx_;
   
   double alpha_;
   double alpha_max_;
   double alpha_min_;
   double alpha_switch_;
+  
+  std::thread* gain_thread_;
+  
+  int ctr_switch_;
+  bool new_gain_available_;
+  
   
   ect::FilteredVectorXd wrench_fitler_;
 
@@ -87,7 +95,7 @@ protected:
 
   geometry_msgs::PoseStamped robot_pose_sp_;
   geometry_msgs::PoseStamped human_pose_sp_;
-  Eigen::Affine3d T_base_targetpose_;
+
   Eigen::Affine3d T_robot_base_targetpose_;
   Eigen::Affine3d T_human_base_targetpose_;
   
@@ -118,6 +126,12 @@ protected:
   Eigen::MatrixXd Kh_nc_ ;
   Eigen::MatrixXd Kr_nc_;
   
+  Eigen::MatrixXd K_cgt;
+  Eigen::MatrixXd Kh_lqr;
+  Eigen::MatrixXd Kr_lqr;
+  Eigen::MatrixXd Kh_nc;
+  Eigen::MatrixXd Kr_nc;
+  
   std::string control_type_;
   std::string base_control_type_;
   
@@ -126,9 +140,8 @@ protected:
   bool robot_active_;
 
   bool first_cycle_;
-  int count_update_;
   bool new_sp_available_;
-    
+  
   int n_dofs_;
   
   bool w_b_init_;
@@ -151,7 +164,10 @@ protected:
   size_t current_vel_pub_;
   size_t delta_pub_;
   size_t reference_pose_pub_;
+  size_t robot_ref_pose_pub_;
   size_t delta_W_pub_;
+  size_t human_ref_pose_pub_;
+  size_t human_wrench_pub_ ;  
   
   ros::Subscriber sub_;
 
@@ -167,6 +183,7 @@ protected:
   bool getWeightMatrix(const std::string & param, const int & size, Eigen::MatrixXd& W);
   bool getSSMatrix(const int dofs, const Eigen::Vector6d& M_inv, const Eigen::Vector6d& C, const Eigen::Vector6d& K, Eigen::MatrixXd& A, Eigen::MatrixXd& B);
   
+  void computeGains();
   void updateGTMatrices(const double& alpha );
   
   void wrenchCallback             (const geometry_msgs::WrenchStampedConstPtr& msg );

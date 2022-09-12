@@ -17,7 +17,7 @@
 #include <cppoptlib/problem.h>
 #include <cppoptlib/solver/neldermeadsolver.h>
 
-#include <std_msgs_stamped/Float32Stamped.h>
+#include <std_msgs/Float32.h>
 
 namespace ect = eigen_control_toolbox;
 
@@ -83,6 +83,7 @@ protected:
   
   int ctr_switch_;
   bool new_gain_available_;
+  bool arbitrate_;
   
   
   ect::FilteredVectorXd wrench_fitler_;
@@ -167,7 +168,11 @@ protected:
   size_t robot_ref_pose_pub_;
   size_t delta_W_pub_;
   size_t human_ref_pose_pub_;
-  size_t human_wrench_pub_ ;  
+  size_t human_wrench_pub_ ; 
+  
+  size_t kp_pub_;
+  size_t kv_pub_ ; 
+  size_t alpha_pub_ ; 
   
   ros::Subscriber sub_;
 
@@ -190,7 +195,7 @@ protected:
   void setRobotTargetPoseCallback (const geometry_msgs::PoseStampedConstPtr&   msg );
   void setHumanTargetPoseCallback (const geometry_msgs::PoseStampedConstPtr&   msg );
   void setTargetJointsCallback    (const sensor_msgs::JointStateConstPtr&      msg );
-  void setAlpha                   (const std_msgs_stamped::Float32StampedConstPtr&  msg );
+  void setAlpha                   (const std_msgs::Float32ConstPtr&  msg );
   
   bool eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench&       msg);
   bool eigToTwistMsgs   (const Eigen::Vector6d& ev , geometry_msgs::TwistStamped& msg);

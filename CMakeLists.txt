@@ -22,7 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   message_generation
-  std_msgs_stamped
   tf_conversions
 )
 

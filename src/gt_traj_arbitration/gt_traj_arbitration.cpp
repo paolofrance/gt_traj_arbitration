@@ -377,7 +377,7 @@ bool GTTrajArbitration::doInit()
   kv_pub_              = this->template add_publisher<std_msgs::Float32>("/Kv",5);
   alpha_pub_              = this->template add_publisher<std_msgs::Float32>("/alpha_gt",5);
   
-  gain_thread_= new std::thread(&GTTrajArbitration::computeGains,this);
+//   gain_thread_= new std::thread(&GTTrajArbitration::computeGains,this);
   
   CNR_INFO(this->logger(),"intialized !!");
   CNR_RETURN_TRUE(this->logger());
@@ -547,8 +547,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
         }
       }
       
-      
-      
       new_gain_available_ = false;
       
       gains_mtx_.unlock();
@@ -562,7 +560,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   {
     case GTTrajArbitration::Control::CGT :
     {
-//       CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
       control = K_cgt*reference;
       Kp = K_cgt(n_dofs_,0);
       Kv = K_cgt(n_dofs_,n_dofs_);
@@ -570,9 +567,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     }
     case GTTrajArbitration::Control::LQR :
     {
-//       Eigen::MatrixXd Ph_lq,Pr_lq;    
-//       Kh_lqr_ = solveRiccati(A_,B_single_,Qh_,Rh_,Ph_lq);
-//       Kr_lqr_ = solveRiccati(A_,B_single_,Qr_,Rr_,Pr_lq);
       control <<  Kh_lqr*reference_h,
                   Kr_lqr*reference_r;
       Kp = Kr_lqr(0,0);
@@ -581,8 +575,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     }
     case GTTrajArbitration::Control::NCGT :
     {
-//       Eigen::MatrixXd Ph_nc,Pr_nc;
-//       solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
       control <<  Kh_nc*reference_h,
                   Kr_nc*reference_r;
       Kp = Kr_nc(0,0);
@@ -591,7 +583,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     }
     case GTTrajArbitration::Control::ICGT :
     {
-//       CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
       Eigen::VectorXd c = K_cgt*reference;
       control.segment(0,n_dofs_)       = c.segment(n_dofs_,n_dofs_);
       control.segment(n_dofs_,n_dofs_) = c.segment(0,n_dofs_); 
@@ -601,7 +592,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     }
     default:
     {
-//       CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
       control = K_cgt*reference;
       Kp = K_cgt(n_dofs_,0);
       Kv = K_cgt(n_dofs_,n_dofs_);

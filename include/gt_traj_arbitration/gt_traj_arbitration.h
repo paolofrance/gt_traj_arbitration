@@ -19,6 +19,8 @@
 
 #include <std_msgs/Float32.h>
 
+#include <pbo_service/updateGT.h>
+
 namespace ect = eigen_control_toolbox;
 
 namespace cnr
@@ -31,7 +33,8 @@ namespace control
  * @brief The GTTrajArbitration class
  */
 class GTTrajArbitration: public cnr::control::JointCommandController<
-        hardware_interface::JointHandle, hardware_interface::VelocityJointInterface>
+//         hardware_interface::JointHandle, hardware_interface::VelocityJointInterface>
+        hardware_interface::JointHandle, hardware_interface::PositionJointInterface>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -127,13 +130,13 @@ protected:
   Eigen::MatrixXd Kh_nc_ ;
   Eigen::MatrixXd Kr_nc_;
   
-  Eigen::MatrixXd K_cgt;
-  Eigen::MatrixXd Kh_lqr;
-  Eigen::MatrixXd Kr_lqr;
-  Eigen::MatrixXd Kh_nc;
-  Eigen::MatrixXd Kr_nc;
+//   Eigen::MatrixXd K_cgt;
+//   Eigen::MatrixXd Kh_lqr;
+//   Eigen::MatrixXd Kr_lqr;
+//   Eigen::MatrixXd Kh_nc;
+//   Eigen::MatrixXd Kr_nc;
   
-  std::string control_type_;
+  std::string switch_control_type_;
   std::string base_control_type_;
   
   
@@ -174,7 +177,8 @@ protected:
   size_t kv_pub_ ; 
   size_t alpha_pub_ ; 
   
-  ros::Subscriber sub_;
+  ros::ServiceServer service_;
+  
 
   Eigen::Vector6d M_;
   Eigen::Vector6d M_inv_;
@@ -182,6 +186,7 @@ protected:
   Eigen::Vector6d K_;
   
   Eigen::Vector6d mask_;
+  Eigen::Vector6d wrench_gains_;
   
   bool getImpedanceParams(Eigen::Vector6d& M, Eigen::Vector6d& C, Eigen::Vector6d& K );
   Eigen::Vector6d getMask();
@@ -191,14 +196,19 @@ protected:
   void computeGains();
   void updateGTMatrices(const double& alpha );
   
+  void firstCycleInit();
   void wrenchCallback             (const geometry_msgs::WrenchStampedConstPtr& msg );
   void setRobotTargetPoseCallback (const geometry_msgs::PoseStampedConstPtr&   msg );
   void setHumanTargetPoseCallback (const geometry_msgs::PoseStampedConstPtr&   msg );
   void setTargetJointsCallback    (const sensor_msgs::JointStateConstPtr&      msg );
   void setAlpha                   (const std_msgs::Float32ConstPtr&  msg );
+  Eigen::VectorXd getReference(const Eigen::Affine3d& targetpose, const Eigen::Affine3d& T_bt);
   
   bool eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench&       msg);
   bool eigToTwistMsgs   (const Eigen::Vector6d& ev , geometry_msgs::TwistStamped& msg);
+  
+  bool updateGTSrv( pbo_service::updateGT::Request  &req,
+                    pbo_service::updateGT::Response &res);
   
   Eigen::MatrixXd solveRiccati( const Eigen::MatrixXd &A,
                                 const Eigen::MatrixXd &B,

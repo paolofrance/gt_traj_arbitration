@@ -131,6 +131,11 @@ void GTTrajArbitration::firstCycleInit()
   robot_pose_sp_.pose = tf2::toMsg (T_robot_base_targetpose_);
   human_pose_sp_.pose = tf2::toMsg (T_robot_base_targetpose_);
   first_cycle_ = false;
+  count_=0;
+  
+  Eigen::Affine3d T_b_t_init = chain_bt_->getTransformation(q_); 
+  Eigen::Vector3d cp = T_b_t_init.translation();
+  initial_pose_ = cp(0);
 }
 
 bool GTTrajArbitration::eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench& msg)
@@ -342,19 +347,36 @@ bool GTTrajArbitration::doInit()
   getWeightMatrix("Rh",n_dofs_,Rh_);
   getWeightMatrix("Rr",n_dofs_,Rr_);
   
-  double alpha;
-  GET_AND_DEFAULT( this->getControllerNh(), "alpha", alpha,0.5);
+  GET_AND_DEFAULT( this->getControllerNh(), "alpha", alpha_,0.5);
   GET_AND_DEFAULT( this->getControllerNh(), "alpha_max", alpha_max_,0.95);
   GET_AND_DEFAULT( this->getControllerNh(), "alpha_min", alpha_min_,0.05);
   GET_AND_DEFAULT( this->getControllerNh(), "alpha_switch", alpha_switch_,0.5);
   
   GET_AND_DEFAULT( this->getControllerNh(), "arbitrate", arbitrate_,true);
+  
+  
+  B_single_.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
+  B_single_.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
+  B_single_.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
+  
+  
+  {  // INIT MPC
+    cgt_= new CoopGT(n_dofs_, this->m_sampling_period);
+    cgt_->setSysParams(A_,B_single_);
+    cgt_->setCostsParams(Qhh_,Qhr_,Qrh_,Qrr_,Rh_,Rr_);
+    cgt_->computeCooperativeGains(alpha_);
 
-  alpha_=alpha;
+    CGT_gain_ = cgt_->getCooperativeGains();    
+    ROS_INFO_STREAM("CGT_gain:\n "<<CGT_gain_);
+  }
+
+  if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
+  {
+    CNR_ERROR(this->logger(),"cost parameters not set!");
+    return false;
+  }
   
-  updateGTMatrices(alpha);
   
-  CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
 
   CNR_INFO(this->logger(),CYAN<<"A\n"   << A_);
   CNR_INFO(this->logger(),CYAN<<"B\n"   << B_);
@@ -372,9 +394,6 @@ bool GTTrajArbitration::doInit()
   GET_AND_DEFAULT(this->getControllerNh(),"base_control",base_control_type_,"cgt");
   
   
-  B_single_.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
-  B_single_.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
-  B_single_.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
   
   Eigen::MatrixXd Ph_lq,Pr_lq;    
   Kh_lqr_ = solveRiccati(A_,B_single_,Qh_,Rh_,Ph_lq);
@@ -384,13 +403,7 @@ bool GTTrajArbitration::doInit()
   solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
   Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
   Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
-  
-//   K_cgt = CGT_gain_;
-//   Kh_lqr = Kh_lqr_;
-//   Kr_lqr = Kr_lqr_;
-//   Kh_nc = Kh_nc_;
-//   Kr_nc = Kr_nc_;
-  
+    
   filtered_wrench_base_pub_ = this->template add_publisher<geometry_msgs::WrenchStamped>("/filtered_wrench_base",5);
   wrench_base_pub_          = this->template add_publisher<geometry_msgs::WrenchStamped>("/wrench_base",5);
   wrench_tool_pub_          = this->template add_publisher<geometry_msgs::WrenchStamped>("/wrench_tool",5);
@@ -455,8 +468,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   if (first_cycle_)
     firstCycleInit();
   
-  updateGTMatrices(alpha_);
-  
   Eigen::Vector6d wrench = (use_filtered_wrench_) ? w_b_filt_ : w_b_;
   
   if(use_cartesian_reference_)
@@ -484,142 +495,65 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     br.sendTransform(tf::StampedTransform(tbt, ros::Time::now(), "base_link", "TBT")); 
   }
 
-//   Eigen::Matrix<double,6,1> human_cartesian_error_actual_target_in_b;
-//   rosdyn::getFrameDistance(T_human_base_targetpose_ , T_b_t, human_cartesian_error_actual_target_in_b);
-//   
-//   Eigen::VectorXd reference_h; reference_h.resize(2*n_dofs_); 
-//   Eigen::VectorXd reference_r; reference_r.resize(2*n_dofs_); 
-//   
-//   reference_h.segment(0,n_dofs_) = human_cartesian_error_actual_target_in_b.segment(0,n_dofs_);
-//   reference_h.segment(n_dofs_,n_dofs_) = Eigen::VectorXd::Zero(n_dofs_);
-//   reference_r.segment(0,n_dofs_) = robot_cartesian_error_actual_target_in_b.segment(0,n_dofs_);
-//   reference_r.segment(n_dofs_,n_dofs_) = Eigen::VectorXd::Zero(n_dofs_);
-  
-  Eigen::VectorXd reference_h = getReference(T_human_base_targetpose_ , T_b_t);
-  Eigen::VectorXd reference_r = getReference(T_robot_base_targetpose_ , T_b_t);
-  Eigen::VectorXd shared_reference = Q_gt_.inverse() * (Qh_*reference_h + Qr_*reference_r);
-  
-  
   ctr_switch_ = (alpha_<alpha_switch_) ? control_map_.at(switch_control_type_) : control_map_.at(base_control_type_);
   CNR_INFO_THROTTLE(this->logger(),5.0,"control type active: " << control_map_reverse_.at(ctr_switch_)<<" . alpha : " << alpha_);
   
   Eigen::VectorXd control(2*n_dofs_); control.setZero();
   double Kp,Kv;
   
-  gains_mtx_.lock();
+  Eigen::Matrix6Xd J_of_t_in_b  = chain_bt_->getJacobian(q_);
+  Eigen::Vector6d cart_vel_of_t_in_b  = J_of_t_in_b*dq_;
+  Eigen::Vector6d cart_acc_nl_of_t_in_b  = chain_bt_->getDTwistNonLinearPartTool(q_,dq_); // DJ*Dq
+  Eigen::Vector6d cart_acc_of_t_in_b; cart_acc_of_t_in_b.setZero();
+  
+  // TODO GT
+  Eigen::Vector3d cart_pos = T_b_t.translation();
+  Eigen::VectorXd X; X.resize(2*n_dofs_);
+  X << cart_pos.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(0,n_dofs_); 
+  
+  Eigen::VectorXd ref_h = T_human_base_targetpose_.translation().segment(0,n_dofs_);
+  Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
+  
   switch(ctr_switch_)
   {
-    
     case GTTrajArbitration::Control::CGT :
     {
-//       CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
-      control = CGT_gain_*shared_reference;
+      cgt_->computeCooperativeGains(alpha_);
+      CGT_gain_ = cgt_->getCooperativeGains();
+      cgt_->setPosReference(ref_h,ref_r);
+      cgt_->setCurrentState(X);
+      control = cgt_->computeControlInputs();
       Kp = CGT_gain_(n_dofs_,0);
       Kv = CGT_gain_(n_dofs_,n_dofs_);
       break;
     }
     case GTTrajArbitration::Control::NCGT :
     {    
-//       Eigen::MatrixXd Ph_nc,Pr_nc;
-//       solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
-//       Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
-//       Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
-      control <<  Kh_nc_*reference_h,
-                  Kr_nc_*reference_r;
+      Eigen::MatrixXd Ph_nc,Pr_nc;
+      solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
+      Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
+      Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
+      control <<  Kh_nc_*ref_h,
+                  Kr_nc_*ref_r;
       Kp = Kr_nc_(0,0);
       Kv = Kr_nc_(0,n_dofs_);
       break;
     }
-    default:
-    {
-      CNR_WARN(this->logger(),"default control ... why?");
-//       CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
-      control = CGT_gain_*shared_reference;
-      Kp = CGT_gain_(n_dofs_,0);
-      Kv = CGT_gain_(n_dofs_,n_dofs_);
-      break;
-    }
   }
-  gains_mtx_.unlock();
-  
-  
     
-  
-//   if(arbitrate_)
-//   {
-//     CNR_INFO_THROTTLE(this->logger(),2.0,"Arbitrating. computing gains for: "<< control_map_reverse_.at(ctr_switch_));
-//     computeGains();
-//   }
-//   
-//   switch(ctr_switch_)
-//   {
-//     case GTTrajArbitration::Control::CGT :
-//     {
-//       control = K_cgt*shared_reference;
-//       Kp = K_cgt(n_dofs_,0);
-//       Kv = K_cgt(n_dofs_,n_dofs_);
-//       break;
-//     }
-//     case GTTrajArbitration::Control::LQR :
-//     {
-//       control <<  Kh_lqr*reference_h,
-//                   Kr_lqr*reference_r;
-//       Kp = Kr_lqr(0,0);
-//       Kv = Kr_lqr(0,n_dofs_);
-//       break;
-//     }
-//     case GTTrajArbitration::Control::NCGT :
-//     {
-//       control <<  Kh_nc*reference_h,
-//                   Kr_nc*reference_r;
-//       Kp = Kr_nc(0,0);
-//       Kv = Kr_nc(0,n_dofs_);
-//       break;
-//     }
-//     case GTTrajArbitration::Control::ICGT :
-//     {
-//       Eigen::VectorXd c = K_cgt*shared_reference;
-//       control.segment(0,n_dofs_)       = c.segment(n_dofs_,n_dofs_);
-//       control.segment(n_dofs_,n_dofs_) = c.segment(0,n_dofs_); 
-//       Kp = K_cgt(n_dofs_,0);
-//       Kv = K_cgt(n_dofs_,n_dofs_);
-//       break;
-//     }
-//     default:
-//     {
-//       control = K_cgt*shared_reference;
-//       Kp = K_cgt(n_dofs_,0);
-//       Kv = K_cgt(n_dofs_,n_dofs_);
-//       break;
-//     }
-//   }
-  
-  
-  
+
+    
   Eigen::Vector6d human_wrench_ic = mask_.cwiseProduct(wrench);
+  
   Eigen::Vector6d nominal_human_wrench_ic; nominal_human_wrench_ic.setZero(); 
   nominal_human_wrench_ic.segment(0,n_dofs_) = control.segment(0,n_dofs_);
-  
+    
   Eigen::Vector6d robot_wrench_ic; robot_wrench_ic.setZero(); 
   if(robot_active_)
-    robot_wrench_ic.segment(0,n_dofs_) = control.segment(n_dofs_,n_dofs_);
-  
-  
-  // CARTESIAN IMPEDANCE
-  
-  Eigen::Matrix6Xd J_of_t_in_b  = chain_bt_->getJacobian(q_);
-  Eigen::Vector6d cart_vel_of_t_in_b  = J_of_t_in_b*dq_;
-  Eigen::Vector6d cart_acc_nl_of_t_in_b  = chain_bt_->getDTwistNonLinearPartTool(q_,dq_); // DJ*Dq
-  Eigen::Vector6d cart_acc_of_t_in_b; cart_acc_of_t_in_b.setZero();
-  
-  Eigen::Matrix<double,6,1> robot_cartesian_error_actual_target_in_b;
-  rosdyn::getFrameDistance(T_robot_base_targetpose_ , T_b_t, robot_cartesian_error_actual_target_in_b);
-  Eigen::Vector6d global_reference = robot_cartesian_error_actual_target_in_b;
-  if(robot_active_)
-    global_reference.segment(0,n_dofs_) = shared_reference.segment(0,n_dofs_);
+    robot_wrench_ic.segment(0,n_dofs_) = control.segment(n_dofs_,n_dofs_);  
+
   
   cart_acc_of_t_in_b = (M_inv_).cwiseProduct(
-                        K_.cwiseProduct(global_reference) +
                         D_.cwiseProduct(-cart_vel_of_t_in_b) +
                         human_wrench_ic + robot_wrench_ic);
   

@@ -13,7 +13,6 @@
   <depend> controller_interface     </depend>
   <depend> cnr_controller_interface </depend>
   <depend> state_space_filters      </depend>
-<!--   <depend> cnr_hardware_interface   </de1pend> -->
   <depend> pluginlib                </depend>
   <depend> roscpp                   </depend>
   <depend> sensor_msgs              </depend>
@@ -28,6 +27,7 @@
   <depend>tf_conversions</depend>
   
   <depend>pbo_service</depend>
+  <depend>differential_gt</depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

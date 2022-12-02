@@ -20,6 +20,7 @@
 #include <std_msgs/Float32.h>
 
 #include <pbo_service/updateGT.h>
+#include <differential_gt/cgt.h>
 
 namespace ect = eigen_control_toolbox;
 
@@ -73,6 +74,8 @@ public:
   }; 
 
 protected:
+  
+  CoopGT* cgt_;
 
   std::mutex m_mtx;
   std::mutex gains_mtx_;
@@ -146,7 +149,10 @@ protected:
   bool first_cycle_;
   bool new_sp_available_;
   
+  double initial_pose_;
+
   int n_dofs_;
+  int count_;
   
   bool w_b_init_;
   bool use_filtered_wrench_;

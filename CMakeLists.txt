@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   tf_conversions
   pbo_service
+  differential_gt
 )
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)

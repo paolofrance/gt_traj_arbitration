@@ -224,11 +224,35 @@ void GTTrajArbitration::computeGains()
 bool GTTrajArbitration::doInit()
 {
   
+try
+{
+  
+  ROS_INFO_STREAM(cnr_logger::BLUE()<< "qui"<<this->jointNames().size());
+  
+  for(auto n:this->jointNames())
+    ROS_INFO_STREAM(cnr_logger::BLUE()<< "joint name: "<<n);
+  
+  
+  
   q_sp_ .resize(this->jointNames().size());  q_sp_ .setZero();
   dq_sp_.resize(this->jointNames().size());  dq_sp_.setZero();
   q_    .resize(this->jointNames().size());  q_    .setZero();
   dq_   .resize(this->jointNames().size());  dq_   .setZero();
   ddq_  .resize(this->jointNames().size());  ddq_  .setZero();
+
+  ROS_INFO_STREAM(cnr_logger::BLUE()<< "q_sp_ .: "<<q_sp_ .transpose());  
+  ROS_INFO_STREAM(cnr_logger::BLUE()<< "dq_sp_.: "<<dq_sp_.transpose());  
+  ROS_INFO_STREAM(cnr_logger::BLUE()<< "q_    .: "<<q_    .transpose());  
+  ROS_INFO_STREAM(cnr_logger::BLUE()<< "dq_   .: "<<dq_   .transpose());  
+  ROS_INFO_STREAM(cnr_logger::BLUE()<< "ddq_  .: "<<ddq_  .transpose());  
+  
+  
+  
+  
+  
+  
+  
+  
   
   GET_AND_RETURN(this->getControllerNh(),"n_dofs",n_dofs_);
   
@@ -360,7 +384,7 @@ bool GTTrajArbitration::doInit()
   B_single_.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
   
   
-  {  // INIT MPC
+  {  // INIT CGT
     cgt_= new CoopGT(n_dofs_, this->m_sampling_period);
     cgt_->setSysParams(A_,B_single_);
     cgt_->setCostsParams(Qhh_,Qhr_,Qrh_,Qrr_,Rh_,Rr_);
@@ -369,12 +393,23 @@ bool GTTrajArbitration::doInit()
     CGT_gain_ = cgt_->getCooperativeGains();    
     ROS_INFO_STREAM("CGT_gain:\n "<<CGT_gain_);
   }
+  {  // INIT NCGT
+    ncgt_= new NonCoopGT(n_dofs_, this->m_sampling_period);
+    ncgt_->setSysParams(A_,B_single_);
+    
+    if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
+    {
+      CNR_ERROR(this->logger(),"cost parameters not set!");
+      return false;
+    }
 
-  if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
-  {
-    CNR_ERROR(this->logger(),"cost parameters not set!");
-    return false;
+    ncgt_->setCostsParams(Qh_,Qr_,Rh_,Rr_);
+    ncgt_->computeNonCooperativeGains();
+    ncgt_->getNonCooperativeGains(Kh_nc_,Kr_nc_);    
+    ROS_INFO_STREAM("NCGT_gain:\n "<<Kh_nc_);
+    ROS_INFO_STREAM("NCGT_gain:\n "<<Kr_nc_);
   }
+
   
   
 
@@ -425,6 +460,18 @@ bool GTTrajArbitration::doInit()
   
   CNR_INFO(this->logger(),"intialized !!");
   CNR_RETURN_TRUE(this->logger());
+  
+  
+}
+catch(std::exception& e)
+{
+  CNR_ERROR( this->logger(), cnr_logger::RED() << "got exception !" );
+  
+  CNR_RETURN_FALSE(this->logger());
+
+  
+}
+
 }
 
 
@@ -537,6 +584,20 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
                   Kr_nc_*ref_r;
       Kp = Kr_nc_(0,0);
       Kv = Kr_nc_(0,n_dofs_);
+      
+      
+      //TODO:: sono rimasto qui, verificare che le matrici vengano aggiornate, siano coerenti eccc...
+      cgt_->updateGTMatrices(alpha_);
+      if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
+      {
+        CNR_ERROR(this->logger(),"cost parameters not set!");
+        return false;
+      }
+
+      ncgt_->setCostsParams(Qh_,Qr_,Rh_,Rr_);
+      ncgt_->computeNonCooperativeGains();
+      ncgt_->getNonCooperativeGains(Kh_nc_,Kr_nc_);
+      
       break;
     }
   }

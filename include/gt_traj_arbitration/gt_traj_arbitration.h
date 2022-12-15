@@ -21,6 +21,7 @@
 
 #include <pbo_service/updateGT.h>
 #include <differential_gt/cgt.h>
+#include <differential_gt/ncgt.h>
 
 namespace ect = eigen_control_toolbox;
 
@@ -76,6 +77,7 @@ public:
 protected:
   
   CoopGT* cgt_;
+  NonCoopGT* ncgt_;
 
   std::mutex m_mtx;
   std::mutex gains_mtx_;

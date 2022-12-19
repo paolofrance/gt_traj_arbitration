@@ -559,7 +559,9 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   X << cart_pos.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(0,n_dofs_); 
   
   Eigen::VectorXd ref_h = T_human_base_targetpose_.translation().segment(0,n_dofs_);
-  Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
+//   Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
+//   Eigen::VectorXd ref_h = ref_r;
+  Eigen::VectorXd ref_r = ref_h;
   
   switch(ctr_switch_)
   {
@@ -575,7 +577,7 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       break;
     }
     case GTTrajArbitration::Control::NCGT :
-    {    
+    {
       Eigen::MatrixXd Ph_nc,Pr_nc;
       solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
       Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
@@ -963,8 +965,15 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
                                       pbo_service::updateGT::Response &res)
   {
     
-    for(int i=0;i<req.Rr.size();i++)
-      ROS_INFO_STREAM("New values available for the Rr at"<< i <<" ! Rr = "<< req.Rr.at(i));
+    ROS_INFO_STREAM("New values available for the Rr = "<< req.Rr);
+    ROS_INFO_STREAM("New values available for the alpha = "<< req.alpha);
+    
+    Rr_ = Eigen::MatrixXd::Identity(n_dofs_, n_dofs_) * req.Rr;
+    ROS_INFO_STREAM("New Rr\n "<< Rr_);
+    alpha_ = req.alpha;
+    cgt_->setCostsParams(Qhh_,Qhr_,Qrh_,Qrr_,Rh_,Rr_);
+
+    res.res = true;
     
     return true;
   }

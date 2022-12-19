@@ -127,7 +127,7 @@ protected:
   Eigen::MatrixXd Q_gt_;
   Eigen::MatrixXd R_gt_;
 
-  Eigen::MatrixXd P_;
+//   Eigen::MatrixXd P_;
   Eigen::MatrixXd CGT_gain_;
   
   Eigen::MatrixXd Kh_lqr_;
@@ -201,8 +201,8 @@ protected:
   bool getWeightMatrix(const std::string & param, const int & size, Eigen::MatrixXd& W);
   bool getSSMatrix(const int dofs, const Eigen::Vector6d& M_inv, const Eigen::Vector6d& C, const Eigen::Vector6d& K, Eigen::MatrixXd& A, Eigen::MatrixXd& B);
   
-  void computeGains();
-  void updateGTMatrices(const double& alpha );
+//   void computeGains();
+//   void updateGTMatrices(const double& alpha );
   
   void firstCycleInit();
   void wrenchCallback             (const geometry_msgs::WrenchStampedConstPtr& msg );
@@ -218,22 +218,22 @@ protected:
   bool updateGTSrv( pbo_service::updateGT::Request  &req,
                     pbo_service::updateGT::Response &res);
   
-  Eigen::MatrixXd solveRiccati( const Eigen::MatrixXd &A,
-                                const Eigen::MatrixXd &B,
-                                const Eigen::MatrixXd &Q,
-                                const Eigen::MatrixXd &R,
-                                      Eigen::MatrixXd &P) ;
-  
-  void solveNashEquilibrium( const Eigen::MatrixXd &A,
-            const Eigen::MatrixXd &B1,
-            const Eigen::MatrixXd &B2,
-            const Eigen::MatrixXd &Q1,
-            const Eigen::MatrixXd &Q2,
-            const Eigen::MatrixXd &R1,
-            const Eigen::MatrixXd &R2, 
-            const Eigen::MatrixXd &R12,
-            const Eigen::MatrixXd &R21, 
-            Eigen::MatrixXd &P1,Eigen::MatrixXd &P2);
+//   Eigen::MatrixXd solveRiccati( const Eigen::MatrixXd &A,
+//                                 const Eigen::MatrixXd &B,
+//                                 const Eigen::MatrixXd &Q,
+//                                 const Eigen::MatrixXd &R,
+//                                       Eigen::MatrixXd &P) ;
+//   
+//   void solveNashEquilibrium( const Eigen::MatrixXd &A,
+//             const Eigen::MatrixXd &B1,
+//             const Eigen::MatrixXd &B2,
+//             const Eigen::MatrixXd &Q1,
+//             const Eigen::MatrixXd &Q2,
+//             const Eigen::MatrixXd &R1,
+//             const Eigen::MatrixXd &R2, 
+//             const Eigen::MatrixXd &R12,
+//             const Eigen::MatrixXd &R21, 
+//             Eigen::MatrixXd &P1,Eigen::MatrixXd &P2);
   
   
   

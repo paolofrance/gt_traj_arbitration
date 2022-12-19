@@ -103,24 +103,27 @@ bool GTTrajArbitration::getSSMatrix(const int dofs, const Eigen::Vector6d& M_inv
   A.bottomLeftCorner (dofs,dofs)  = km.asDiagonal();
   A.bottomRightCorner(dofs,dofs)  = cm.asDiagonal();
   
-  B.topLeftCorner    (2*dofs, 2*dofs) = Eigen::MatrixXd::Zero(2*dofs, 2*dofs);
-  B.bottomLeftCorner (dofs,dofs)  = M_inv.segment(0,dofs).asDiagonal();
-  B.bottomRightCorner(dofs,dofs)  = M_inv.segment(0,dofs).asDiagonal();
+//   B.topLeftCorner    (2*dofs, 2*dofs) = Eigen::MatrixXd::Zero(2*dofs, 2*dofs);
+//   B.bottomLeftCorner (dofs,dofs)  = M_inv.segment(0,dofs).asDiagonal();
+//   B.bottomRightCorner(dofs,dofs)  = M_inv.segment(0,dofs).asDiagonal();
+  
+  B.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
+  B.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
+  B.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
   
   return true;
 }
 
-void GTTrajArbitration::updateGTMatrices(const double& alpha )
-{
-  Qh_ = alpha*Qhh_ + (1-alpha)*Qrh_;
-  Qr_ = alpha*Qhr_ + (1-alpha)*Qrr_;
-  
-  Q_gt_ = Qh_ + Qr_;
-  
-  R_gt_.topLeftCorner    (Rh_.cols(),Rh_.cols()) = alpha*Rh_;
-  R_gt_.bottomRightCorner(Rh_.cols(),Rh_.cols()) = (1-alpha)*Rr_;
-  
-}
+// void GTTrajArbitration::updateGTMatrices(const double& alpha )
+// {
+//   Qh_ = alpha*Qhh_ + (1-alpha)*Qrh_;
+//   Qr_ = alpha*Qhr_ + (1-alpha)*Qrr_;
+//   
+//   Q_gt_ = Qh_ + Qr_;
+//   
+//   R_gt_.topLeftCorner    (Rh_.cols(),Rh_.cols()) = alpha*Rh_;
+//   R_gt_.bottomRightCorner(Rh_.cols(),Rh_.cols()) = (1-alpha)*Rr_;
+// }
 
 void GTTrajArbitration::firstCycleInit()
 {
@@ -174,52 +177,52 @@ Eigen::VectorXd GTTrajArbitration::getReference(const Eigen::Affine3d& targetpos
   
 }
 
-void GTTrajArbitration::computeGains()
-{
-  while(ros::ok())
-  {
-    gains_mtx_.lock();
-    switch(ctr_switch_)
-    {
-      case GTTrajArbitration::Control::CGT :
-      {
-        CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
-        break;
-      }
-      case GTTrajArbitration::Control::LQR :
-      {
-        Eigen::MatrixXd Ph_lq,Pr_lq;    
-        Kh_lqr_ = solveRiccati(A_,B_single_,Qh_,Rh_,Ph_lq);
-        Kr_lqr_ = solveRiccati(A_,B_single_,Qr_,Rr_,Pr_lq);
-        break;
-      }
-      case GTTrajArbitration::Control::NCGT :
-      {
-        Eigen::MatrixXd Ph_nc,Pr_nc;
-        solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
-        Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
-        Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
-        break;
-      }
-      case GTTrajArbitration::Control::ICGT :
-      {
-        CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
-        break;
-      }
-      default:
-      {
-        CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
-        break;
-      }
-    }
-    gains_mtx_.unlock();
-    
-    new_gain_available_ = true;
-    
-    ros::Duration(0.01).sleep();
-  }
-  return;
-}
+// void GTTrajArbitration::computeGains()
+// {
+//   while(ros::ok())
+//   {
+//     gains_mtx_.lock();
+//     switch(ctr_switch_)
+//     {
+//       case GTTrajArbitration::Control::CGT :
+//       {
+//         CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
+//         break;
+//       }
+//       case GTTrajArbitration::Control::LQR :
+//       {
+//         Eigen::MatrixXd Ph_lq,Pr_lq;    
+//         Kh_lqr_ = solveRiccati(A_,B_single_,Qh_,Rh_,Ph_lq);
+//         Kr_lqr_ = solveRiccati(A_,B_single_,Qr_,Rr_,Pr_lq);
+//         break;
+//       }
+//       case GTTrajArbitration::Control::NCGT :
+//       {
+//         Eigen::MatrixXd Ph_nc,Pr_nc;
+//         solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
+//         Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
+//         Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
+//         break;
+//       }
+//       case GTTrajArbitration::Control::ICGT :
+//       {
+//         CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
+//         break;
+//       }
+//       default:
+//       {
+//         CGT_gain_ = solveRiccati(A_,B_,Q_gt_,R_gt_,P_);
+//         break;
+//       }
+//     }
+//     gains_mtx_.unlock();
+//     
+//     new_gain_available_ = true;
+//     
+//     ros::Duration(0.01).sleep();
+//   }
+//   return;
+// }
 
 bool GTTrajArbitration::doInit()
 {
@@ -257,7 +260,7 @@ try
   GET_AND_RETURN(this->getControllerNh(),"n_dofs",n_dofs_);
   
   A_   .resize(2*n_dofs_,2*n_dofs_);   A_   .setZero();
-  B_   .resize(2*n_dofs_,2*n_dofs_);   B_   .setZero();
+  B_   .resize(2*n_dofs_,n_dofs_  );   B_   .setZero();
   Qhh_ .resize(2*n_dofs_,2*n_dofs_);   Qhh_ .setZero();
   Qhr_ .resize(2*n_dofs_,2*n_dofs_);   Qhr_ .setZero();
   Qrh_ .resize(2*n_dofs_,2*n_dofs_);   Qrh_ .setZero();
@@ -268,7 +271,7 @@ try
   R_gt_.resize(2*n_dofs_,2*n_dofs_);   R_gt_.setZero();
   
   CGT_gain_.resize(2*n_dofs_,2*n_dofs_); CGT_gain_.setZero();
-  P_       .resize(2*n_dofs_,2*n_dofs_); P_       .setZero();
+//   P_       .resize(2*n_dofs_,2*n_dofs_); P_       .setZero();
   
   
   //INIT PUB/SUB
@@ -379,14 +382,14 @@ try
   GET_AND_DEFAULT( this->getControllerNh(), "arbitrate", arbitrate_,true);
   
   
-  B_single_.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
-  B_single_.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
-  B_single_.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
+//   B_single_.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
+//   B_single_.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
+//   B_single_.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
   
   
   {  // INIT CGT
     cgt_= new CoopGT(n_dofs_, this->m_sampling_period);
-    cgt_->setSysParams(A_,B_single_);
+    cgt_->setSysParams(A_,B_);
     cgt_->setCostsParams(Qhh_,Qhr_,Qrh_,Qrr_,Rh_,Rr_);
     cgt_->computeCooperativeGains(alpha_);
 
@@ -394,15 +397,13 @@ try
     ROS_INFO_STREAM("CGT_gain:\n "<<CGT_gain_);
   }
   {  // INIT NCGT
-    ncgt_= new NonCoopGT(n_dofs_, this->m_sampling_period);
-    ncgt_->setSysParams(A_,B_single_);
-    
     if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
     {
       CNR_ERROR(this->logger(),"cost parameters not set!");
       return false;
     }
-
+    ncgt_= new NonCoopGT(n_dofs_, this->m_sampling_period);
+    ncgt_->setSysParams(A_,B_);
     ncgt_->setCostsParams(Qh_,Qr_,Rh_,Rr_);
     ncgt_->computeNonCooperativeGains();
     ncgt_->getNonCooperativeGains(Kh_nc_,Kr_nc_);    
@@ -430,14 +431,14 @@ try
   
   
   
-  Eigen::MatrixXd Ph_lq,Pr_lq;    
-  Kh_lqr_ = solveRiccati(A_,B_single_,Qh_,Rh_,Ph_lq);
-  Kr_lqr_ = solveRiccati(A_,B_single_,Qr_,Rr_,Pr_lq);
+//   Eigen::MatrixXd Ph_lq,Pr_lq;    
+//   Kh_lqr_ = solveRiccati(A_,B_single_,Qh_,Rh_,Ph_lq);
+//   Kr_lqr_ = solveRiccati(A_,B_single_,Qr_,Rr_,Pr_lq);
   
-  Eigen::MatrixXd Ph_nc,Pr_nc;
-  solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
-  Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
-  Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
+//   Eigen::MatrixXd Ph_nc,Pr_nc;
+//   solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
+//   Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
+//   Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
     
   filtered_wrench_base_pub_ = this->template add_publisher<geometry_msgs::WrenchStamped>("/filtered_wrench_base",5);
   wrench_base_pub_          = this->template add_publisher<geometry_msgs::WrenchStamped>("/wrench_base",5);
@@ -456,7 +457,7 @@ try
   kv_pub_              = this->template add_publisher<std_msgs::Float32>("/Kv",5);
   alpha_pub_              = this->template add_publisher<std_msgs::Float32>("/alpha_gt",5);
   
-  gain_thread_= new std::thread(&GTTrajArbitration::computeGains,this);
+//   gain_thread_= new std::thread(&GTTrajArbitration::computeGains,this);
   
   CNR_INFO(this->logger(),"intialized !!");
   CNR_RETURN_TRUE(this->logger());
@@ -578,14 +579,10 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     }
     case GTTrajArbitration::Control::NCGT :
     {
-      Eigen::MatrixXd Ph_nc,Pr_nc;
-      solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
-      Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
-      Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
-      control <<  Kh_nc_*ref_h,
-                  Kr_nc_*ref_r;
-      Kp = Kr_nc_(0,0);
-      Kv = Kr_nc_(0,n_dofs_);
+//       Eigen::MatrixXd Ph_nc,Pr_nc;
+//       solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
+//       Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
+//       Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
       
       
       //TODO:: sono rimasto qui, verificare che le matrici vengano aggiornate, siano coerenti eccc...
@@ -600,6 +597,11 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       ncgt_->computeNonCooperativeGains();
       ncgt_->getNonCooperativeGains(Kh_nc_,Kr_nc_);
       
+      Kp = Kr_nc_(0,0);
+      Kv = Kr_nc_(0,n_dofs_);
+
+      control <<  Kh_nc_*ref_h,
+                  Kr_nc_*ref_r;
       break;
     }
   }
@@ -821,80 +823,80 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     this->publish(delta_W_pub_,deltaW);
   }
 
-  Eigen::MatrixXd GTTrajArbitration::solveRiccati(const Eigen::MatrixXd &A,
-                                                  const Eigen::MatrixXd &B,
-                                                  const Eigen::MatrixXd &Q,
-                                                  const Eigen::MatrixXd &R, Eigen::MatrixXd &P)
-  {
-    const uint dim_x = A.rows();
-    const uint dim_u = B.cols();
-
-    Eigen::MatrixXd Ham = Eigen::MatrixXd::Zero(2 * dim_x, 2 * dim_x);
-    Ham << A, -B * R.inverse() * B.transpose(), -Q, -A.transpose();
-
-    Eigen::EigenSolver<Eigen::MatrixXd> Eigs(Ham);
-
-    Eigen::MatrixXcd eigvec = Eigen::MatrixXcd::Zero(2 * dim_x, dim_x);
-    int j = 0;
-    for (int i = 0; i < 2 * dim_x; ++i) {
-      if (Eigs.eigenvalues()[i].real() < 0.) {
-        eigvec.col(j) = Eigs.eigenvectors().block(0, i, 2 * dim_x, 1);
-        ++j;
-      }
-    }
-
-    Eigen::MatrixXcd Vs_1, Vs_2;
-    Vs_1 = eigvec.block(0, 0, dim_x, dim_x);
-    Vs_2 = eigvec.block(dim_x, 0, dim_x, dim_x);
-    P = (Vs_2 * Vs_1.inverse()).real();
-    
-    return R.inverse()*B.transpose()*P;
-  }
+//   Eigen::MatrixXd GTTrajArbitration::solveRiccati(const Eigen::MatrixXd &A,
+//                                                   const Eigen::MatrixXd &B,
+//                                                   const Eigen::MatrixXd &Q,
+//                                                   const Eigen::MatrixXd &R, Eigen::MatrixXd &P)
+//   {
+//     const uint dim_x = A.rows();
+//     const uint dim_u = B.cols();
+// 
+//     Eigen::MatrixXd Ham = Eigen::MatrixXd::Zero(2 * dim_x, 2 * dim_x);
+//     Ham << A, -B * R.inverse() * B.transpose(), -Q, -A.transpose();
+// 
+//     Eigen::EigenSolver<Eigen::MatrixXd> Eigs(Ham);
+// 
+//     Eigen::MatrixXcd eigvec = Eigen::MatrixXcd::Zero(2 * dim_x, dim_x);
+//     int j = 0;
+//     for (int i = 0; i < 2 * dim_x; ++i) {
+//       if (Eigs.eigenvalues()[i].real() < 0.) {
+//         eigvec.col(j) = Eigs.eigenvectors().block(0, i, 2 * dim_x, 1);
+//         ++j;
+//       }
+//     }
+// 
+//     Eigen::MatrixXcd Vs_1, Vs_2;
+//     Vs_1 = eigvec.block(0, 0, dim_x, dim_x);
+//     Vs_2 = eigvec.block(dim_x, 0, dim_x, dim_x);
+//     P = (Vs_2 * Vs_1.inverse()).real();
+//     
+//     return R.inverse()*B.transpose()*P;
+//   }
   
-  void GTTrajArbitration::solveNashEquilibrium( const Eigen::MatrixXd &A,
-                                                const Eigen::MatrixXd &B1,
-                                                const Eigen::MatrixXd &B2,
-                                                const Eigen::MatrixXd &Q1,
-                                                const Eigen::MatrixXd &Q2,
-                                                const Eigen::MatrixXd &R1,
-                                                const Eigen::MatrixXd &R2, 
-                                                const Eigen::MatrixXd &R12,
-                                                const Eigen::MatrixXd &R21, 
-                                                Eigen::MatrixXd &P1,Eigen::MatrixXd &P2)
-  {
-    Eigen::MatrixXd S1  = B1 * R1.inverse() * B1.transpose();
-    Eigen::MatrixXd S2  = B2 * R2.inverse() * B2.transpose();
-    Eigen::MatrixXd S12 = B1 * R1.inverse() * R21 * R1.inverse() * B1.transpose();
-    Eigen::MatrixXd S21 = B2 * R2.inverse() * R12 * R2.inverse()* B2.transpose();
-
-    solveRiccati(A,B1,Q1,R1,P1);
-    solveRiccati(A,B2,Q2,R2,P2);
-    
-    Eigen::MatrixXd P1_prev = P1;
-    Eigen::MatrixXd P2_prev = P2;
-    double err_1 = 1;
-    double err_2 = 1;
-    double toll = 0.00001;
-
-    while (err_1>toll && err_2>toll)
-    {    
-      Eigen::MatrixXd A1 = A - S2*P2;
-      Eigen::MatrixXd A2 = A - S1*P1;
-      
-      Eigen::MatrixXd Q_1 = Q1 + P1*S21*P1;
-      solveRiccati(A1,B1,Q_1,R1,P1);
-      Eigen::MatrixXd Q_2 = Q2 + P2*S12*P2;
-      solveRiccati(A2,B2,Q_2,R2,P2);
-    
-      err_1 = (P1-P1_prev).norm();
-      err_2 = (P2-P2_prev).norm();
-      
-      P1_prev = P1;
-      P2_prev = P2;
-    }
-    
-    return;
-  }
+//   void GTTrajArbitration::solveNashEquilibrium( const Eigen::MatrixXd &A,
+//                                                 const Eigen::MatrixXd &B1,
+//                                                 const Eigen::MatrixXd &B2,
+//                                                 const Eigen::MatrixXd &Q1,
+//                                                 const Eigen::MatrixXd &Q2,
+//                                                 const Eigen::MatrixXd &R1,
+//                                                 const Eigen::MatrixXd &R2, 
+//                                                 const Eigen::MatrixXd &R12,
+//                                                 const Eigen::MatrixXd &R21, 
+//                                                 Eigen::MatrixXd &P1,Eigen::MatrixXd &P2)
+//   {
+//     Eigen::MatrixXd S1  = B1 * R1.inverse() * B1.transpose();
+//     Eigen::MatrixXd S2  = B2 * R2.inverse() * B2.transpose();
+//     Eigen::MatrixXd S12 = B1 * R1.inverse() * R21 * R1.inverse() * B1.transpose();
+//     Eigen::MatrixXd S21 = B2 * R2.inverse() * R12 * R2.inverse()* B2.transpose();
+// 
+//     solveRiccati(A,B1,Q1,R1,P1);
+//     solveRiccati(A,B2,Q2,R2,P2);
+//     
+//     Eigen::MatrixXd P1_prev = P1;
+//     Eigen::MatrixXd P2_prev = P2;
+//     double err_1 = 1;
+//     double err_2 = 1;
+//     double toll = 0.00001;
+// 
+//     while (err_1>toll && err_2>toll)
+//     {    
+//       Eigen::MatrixXd A1 = A - S2*P2;
+//       Eigen::MatrixXd A2 = A - S1*P1;
+//       
+//       Eigen::MatrixXd Q_1 = Q1 + P1*S21*P1;
+//       solveRiccati(A1,B1,Q_1,R1,P1);
+//       Eigen::MatrixXd Q_2 = Q2 + P2*S12*P2;
+//       solveRiccati(A2,B2,Q_2,R2,P2);
+//     
+//       err_1 = (P1-P1_prev).norm();
+//       err_2 = (P2-P2_prev).norm();
+//       
+//       P1_prev = P1;
+//       P2_prev = P2;
+//     }
+//     
+//     return;
+//   }
   
   void GTTrajArbitration::setRobotTargetPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg)
   {

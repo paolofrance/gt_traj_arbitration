@@ -560,9 +560,9 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   X << cart_pos.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(0,n_dofs_); 
   
   Eigen::VectorXd ref_h = T_human_base_targetpose_.translation().segment(0,n_dofs_);
-//   Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
+  Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
 //   Eigen::VectorXd ref_h = ref_r;
-  Eigen::VectorXd ref_r = ref_h;
+//   Eigen::VectorXd ref_r = ref_h;
   
   switch(ctr_switch_)
   {

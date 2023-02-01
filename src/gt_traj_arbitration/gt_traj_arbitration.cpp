@@ -977,22 +977,22 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   }
   
   
-  bool GTTrajArbitration::updateGTSrv(pbo_service::updateGT::Request  &req,
-                                      pbo_service::updateGT::Response &res)
-  {
-    
-    ROS_INFO_STREAM("New values available for the Rr = "<< req.Rr);
-    ROS_INFO_STREAM("New values available for the alpha = "<< req.alpha);
-    
-    Rr_ = Eigen::MatrixXd::Identity(n_dofs_, n_dofs_) * req.Rr;
-    ROS_INFO_STREAM("New Rr\n "<< Rr_);
-    alpha_ = req.alpha;
-    cgt_->setCostsParams(Qhh_,Qhr_,Qrh_,Qrr_,Rh_,Rr_);
-
-    res.res = true;
-    
-    return true;
-  }
+//   bool GTTrajArbitration::updateGTSrv(pbo_service::updateGT::Request  &req,
+//                                       pbo_service::updateGT::Response &res)
+//   {
+//     
+//     ROS_INFO_STREAM("New values available for the Rr = "<< req.Rr);
+//     ROS_INFO_STREAM("New values available for the alpha = "<< req.alpha);
+//     
+//     Rr_ = Eigen::MatrixXd::Identity(n_dofs_, n_dofs_) * req.Rr;
+//     ROS_INFO_STREAM("New Rr\n "<< Rr_);
+//     alpha_ = req.alpha;
+//     cgt_->setCostsParams(Qhh_,Qhr_,Qrh_,Qrr_,Rh_,Rr_);
+// 
+//     res.res = true;
+//     
+//     return true;
+//   }
   
 
 }

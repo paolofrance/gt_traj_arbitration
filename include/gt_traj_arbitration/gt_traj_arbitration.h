@@ -19,7 +19,7 @@
 
 #include <std_msgs/Float32.h>
 
-#include <pbo_service/updateGT.h>
+// #include <pbo_service/updateGT.h>
 #include <differential_gt/cgt.h>
 #include <differential_gt/ncgt.h>
 
@@ -216,8 +216,8 @@ protected:
   bool eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench&       msg);
   bool eigToTwistMsgs   (const Eigen::Vector6d& ev , geometry_msgs::TwistStamped& msg);
   
-  bool updateGTSrv( pbo_service::updateGT::Request  &req,
-                    pbo_service::updateGT::Response &res);
+//   bool updateGTSrv( pbo_service::updateGT::Request  &req,
+//                     pbo_service::updateGT::Response &res);
   
 //   Eigen::MatrixXd solveRiccati( const Eigen::MatrixXd &A,
 //                                 const Eigen::MatrixXd &B,

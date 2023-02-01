@@ -26,7 +26,7 @@
   <depend>message_runtime</depend>
   <depend>tf_conversions</depend>
   
-  <depend>pbo_service</depend>
+<!--   <depend>pbo_service</depend> -->
   <depend>differential_gt</depend>
 
 

@@ -23,7 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
   tf_conversions
-  pbo_service
+#   pbo_service
   differential_gt
 )
 

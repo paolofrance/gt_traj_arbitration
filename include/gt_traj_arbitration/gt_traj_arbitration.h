@@ -92,6 +92,7 @@ protected:
   int ctr_switch_;
   bool new_gain_available_;
   bool arbitrate_;
+  bool use_same_reference_;
   
   
   ect::FilteredVectorXd wrench_fitler_;

@@ -381,6 +381,8 @@ try
   
   GET_AND_DEFAULT( this->getControllerNh(), "arbitrate", arbitrate_,true);
   
+  GET_AND_DEFAULT( this->getControllerNh(), "use_same_reference", use_same_reference_,false);
+  
   
 //   B_single_.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
 //   B_single_.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
@@ -554,15 +556,15 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   Eigen::Vector6d cart_acc_nl_of_t_in_b  = chain_bt_->getDTwistNonLinearPartTool(q_,dq_); // DJ*Dq
   Eigen::Vector6d cart_acc_of_t_in_b; cart_acc_of_t_in_b.setZero();
   
-  // TODO GT
   Eigen::Vector3d cart_pos = T_b_t.translation();
   Eigen::VectorXd X; X.resize(2*n_dofs_);
   X << cart_pos.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(0,n_dofs_); 
   
   Eigen::VectorXd ref_h = T_human_base_targetpose_.translation().segment(0,n_dofs_);
   Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
-//   Eigen::VectorXd ref_h = ref_r;
-//   Eigen::VectorXd ref_r = ref_h;
+
+  if (use_same_reference_)
+    Eigen::VectorXd ref_r = ref_h;
   
   switch(ctr_switch_)
   {
@@ -578,14 +580,7 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       break;
     }
     case GTTrajArbitration::Control::NCGT :
-    {
-//       Eigen::MatrixXd Ph_nc,Pr_nc;
-//       solveNashEquilibrium(A_,B_single_,B_single_,Qh_,Qr_,Rh_,Rr_,Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Eigen::MatrixXd::Zero(n_dofs_, n_dofs_),Ph_nc,Pr_nc);
-//       Kh_nc_ = Rh_.inverse()*B_single_.transpose()*Ph_nc;
-//       Kr_nc_ = Rr_.inverse()*B_single_.transpose()*Pr_nc;
-      
-      
-      //TODO:: sono rimasto qui, verificare che le matrici vengano aggiornate, siano coerenti eccc...
+    {      
       cgt_->updateGTMatrices(alpha_);
       if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
       {
@@ -596,12 +591,14 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       ncgt_->setCostsParams(Qh_,Qr_,Rh_,Rr_);
       ncgt_->computeNonCooperativeGains();
       ncgt_->getNonCooperativeGains(Kh_nc_,Kr_nc_);
+      ncgt_->setPosReference(ref_h,ref_r);
+      ncgt_->setCurrentState(X);
       
       Kp = Kr_nc_(0,0);
-      Kv = Kr_nc_(0,n_dofs_);
-
-      control <<  Kh_nc_*ref_h,
-                  Kr_nc_*ref_r;
+      Kv = Kr_nc_(n_dofs_,n_dofs_);
+      
+      control = ncgt_->computeControlInputs();
+      
       break;
     }
   }
@@ -614,11 +611,28 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   nominal_human_wrench_ic.segment(0,n_dofs_) = control.segment(0,n_dofs_);
     
   Eigen::Vector6d robot_wrench_ic; robot_wrench_ic.setZero(); 
+  
+  
+  Eigen::Matrix<double,6,1> robot_cartesian_error_actual_target_in_b;
+  rosdyn::getFrameDistance(T_robot_base_targetpose_ , T_b_t, robot_cartesian_error_actual_target_in_b);
+  Eigen::Vector6d global_reference;
   if(robot_active_)
+  {
+    global_reference.segment(0,n_dofs_) = cgt_->getReference().segment(0,n_dofs_);
+    global_reference.segment(n_dofs_,6-n_dofs_) = robot_cartesian_error_actual_target_in_b.segment(n_dofs_,6-n_dofs_);
     robot_wrench_ic.segment(0,n_dofs_) = control.segment(n_dofs_,n_dofs_);  
-
+}
+  else
+  {
+    global_reference = robot_cartesian_error_actual_target_in_b;
+  }
+  
+  
+  CNR_DEBUG_THROTTLE(this->logger(),2.0,"human_wrench_ic \n" <<human_wrench_ic .transpose());
+  CNR_DEBUG_THROTTLE(this->logger(),2.0,"robot_wrench_ic \n" <<robot_wrench_ic .transpose());
   
   cart_acc_of_t_in_b = (M_inv_).cwiseProduct(
+                        K_.cwiseProduct(global_reference) +
                         D_.cwiseProduct(-cart_vel_of_t_in_b) +
                         human_wrench_ic + robot_wrench_ic);
   

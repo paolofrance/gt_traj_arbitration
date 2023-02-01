@@ -300,7 +300,7 @@ try
     }
   }
   
-  service_ = this->getControllerNh().advertiseService("/update_gt", &GTTrajArbitration::updateGTSrv, this);
+//   service_ = this->getControllerNh().advertiseService("/update_gt", &GTTrajArbitration::updateGTSrv, this);
 
   {  // URDF parsing and chain creation
     urdf::Model urdf_model;

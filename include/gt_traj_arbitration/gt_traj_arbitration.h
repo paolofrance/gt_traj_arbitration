@@ -36,7 +36,8 @@ namespace control
  */
 class GTTrajArbitration: public cnr::control::JointCommandController<
 //         hardware_interface::JointHandle, hardware_interface::VelocityJointInterface>
-        hardware_interface::JointHandle, hardware_interface::PositionJointInterface>
+        hardware_interface::PosVelEffJointHandle, hardware_interface::PosVelEffJointInterface>
+//         hardware_interface::JointHandle, hardware_interface::PositionJointInterface>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -186,7 +187,7 @@ protected:
   size_t kv_pub_ ; 
   size_t alpha_pub_ ; 
   
-  ros::ServiceServer service_;
+//   ros::ServiceServer service_;
   
 
   Eigen::Vector6d M_;

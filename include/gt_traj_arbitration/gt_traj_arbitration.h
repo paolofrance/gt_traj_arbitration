@@ -22,6 +22,7 @@
 // #include <pbo_service/updateGT.h>
 #include <differential_gt/cgt.h>
 #include <differential_gt/ncgt.h>
+#include <rotations_helper/euler_angles_helper.h>
 
 namespace ect = eigen_control_toolbox;
 
@@ -197,6 +198,17 @@ protected:
   
   Eigen::Vector6d mask_;
   Eigen::Vector6d wrench_gains_;
+  
+  double previous_Z_angle_;
+  
+  EulerAnglesHelper actual_rot;
+  EulerAnglesHelper ref_h_rot;
+  EulerAnglesHelper ref_r_rot;
+  
+  
+
+  Eigen::Vector3d getEulerAngles(const Eigen::Affine3d matrix);
+  Eigen::Vector3d getEulerAnglesBounded(const Eigen::Affine3d matrix);
   
   bool getImpedanceParams(Eigen::Vector6d& M, Eigen::Vector6d& C, Eigen::Vector6d& K );
   Eigen::Vector6d getMask();

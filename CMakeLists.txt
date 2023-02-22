@@ -25,6 +25,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions
 #   pbo_service
   differential_gt
+  rotations_helper
 )
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)

@@ -131,6 +131,14 @@ void GTTrajArbitration::firstCycleInit()
   dq_sp_ = this->getVelocity();
   T_human_base_targetpose_ = chain_bt_->getTransformation(q_sp_);
   T_robot_base_targetpose_ = chain_bt_->getTransformation(q_sp_);
+  
+  Eigen::Vector3d angles = ref_r_rot.getEulerAngles(T_robot_base_targetpose_);
+  ref_r_rot.initAngle(angles(2));
+  ref_h_rot.initAngle(angles(2));
+  actual_rot.initAngle(angles(2));
+//   Eigen::Vector3d angles = getEulerAngles(T_robot_base_targetpose_);
+//   previous_Z_angle_ = angles(2);
+
   robot_pose_sp_.pose = tf2::toMsg (T_robot_base_targetpose_);
   human_pose_sp_.pose = tf2::toMsg (T_robot_base_targetpose_);
   first_cycle_ = false;
@@ -388,6 +396,7 @@ try
 //   B_single_.topLeftCorner   (n_dofs_, n_dofs_) = Eigen::MatrixXd::Zero(n_dofs_, n_dofs_);
 //   B_single_.bottomLeftCorner(n_dofs_, n_dofs_) = M_inv_.segment(0,n_dofs_).asDiagonal();
   
+  previous_Z_angle_ = 0.0;
   
   {  // INIT CGT
     cgt_= new CoopGT(n_dofs_, this->m_sampling_period);
@@ -557,12 +566,64 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   Eigen::Vector6d cart_acc_of_t_in_b; cart_acc_of_t_in_b.setZero();
   
   Eigen::Vector3d cart_pos = T_b_t.translation();
-  Eigen::VectorXd X; X.resize(2*n_dofs_);
-  X << cart_pos.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(0,n_dofs_); 
+  Eigen::VectorXd X; 
   
-  Eigen::VectorXd ref_h = T_human_base_targetpose_.translation().segment(0,n_dofs_);
-  Eigen::VectorXd ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
+  if(n_dofs_<=3)
+  {
+    X.resize(2*n_dofs_); 
+    X << cart_pos.segment(0,n_dofs_), cart_vel_of_t_in_b.segment(0,n_dofs_); 
+  }
+  else if(n_dofs_==6)
+  {
+    X.resize(12); 
+    X.segment(0,3) = cart_pos;
+    
+//     X.segment(3,3) = getEulerAnglesBounded( T_b_t );
+    X.segment(3,3) = actual_rot.getEulerAnglesBounded( T_b_t );
+    X.segment(6,6) = cart_vel_of_t_in_b;
+    
+//     Eigen::Vector3d angles = T_robot_base_targetpose_.linear().eulerAngles(2,1,0);
+//     X.segment(3,3) = angles.reverse();
+//     
+//     Eigen::Vector3d rot = T_b_t.linear().eulerAngles(2, 1, 0);
+// //     X.segment(3) = rot.reverse();
+//     
+//     double rz=rot(0);
+//     X(5) = rz;
+//     X.segment(6,6) = Eigen::MatrixXd::Zero(6,1);
+    
+  }
+  else
+  {
+    CNR_ERROR(this->logger(),"wrong number of dofs, allowed 1,2,3 or 6.");
+    CNR_RETURN_FALSE(this->logger());
+  }
 
+  Eigen::VectorXd ref_h;
+  Eigen::VectorXd ref_r;
+  
+  if(n_dofs_<=3)
+  {
+    ref_h.resize(n_dofs_);
+    ref_r.resize(n_dofs_);
+    ref_h = T_human_base_targetpose_.translation().segment(0,n_dofs_);
+    ref_r = T_robot_base_targetpose_.translation().segment(0,n_dofs_);
+  }
+  else if(n_dofs_==6)
+  {
+    ref_h.resize(6);
+    ref_r.resize(6);
+    ref_h.segment(0, 3) = T_human_base_targetpose_.translation();
+    ref_h.segment(3, 3) = ref_h_rot.getEulerAngles( T_human_base_targetpose_ );
+    ref_r.segment(0, 3) = T_robot_base_targetpose_.translation();
+    ref_r.segment(3, 3) = ref_r_rot.getEulerAngles(T_robot_base_targetpose_ );
+  }
+  else
+  {
+    CNR_ERROR(this->logger(),"wrong number of dofs, allowed 1,2,3 or 6.");
+    CNR_RETURN_FALSE(this->logger());
+  }
+  
   if (use_same_reference_)
     Eigen::VectorXd ref_r = ref_h;
   
@@ -618,9 +679,17 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   Eigen::Vector6d global_reference;
   if(robot_active_)
   {
-    global_reference.segment(0,n_dofs_) = cgt_->getReference().segment(0,n_dofs_);
-    global_reference.segment(n_dofs_,6-n_dofs_) = robot_cartesian_error_actual_target_in_b.segment(n_dofs_,6-n_dofs_);
-    robot_wrench_ic.segment(0,n_dofs_) = control.segment(n_dofs_,n_dofs_);  
+//     global_reference.segment(0,n_dofs_) = cgt_->getReference().segment(0,n_dofs_);
+//     global_reference.segment(n_dofs_,6-n_dofs_) = robot_cartesian_error_actual_target_in_b.segment(n_dofs_,6-n_dofs_);
+    if(n_dofs_<=3)
+    {
+      robot_wrench_ic.segment(0,n_dofs_) = control.segment(n_dofs_,n_dofs_);  
+    }
+    else
+    {
+      robot_wrench_ic<< control.segment(6,6);  
+    }
+    global_reference = robot_cartesian_error_actual_target_in_b;
 }
   else
   {
@@ -837,6 +906,41 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     this->publish(delta_W_pub_,deltaW);
   }
 
+  
+  Eigen::Vector3d GTTrajArbitration::getEulerAngles(const Eigen::Affine3d matrix)
+  {
+    return matrix.linear().eulerAngles(2, 1, 0).reverse();
+  }
+  
+  Eigen::Vector3d GTTrajArbitration::getEulerAnglesBounded(const Eigen::Affine3d matrix)
+  {
+    Eigen::Vector3d ret = getEulerAngles(matrix);
+    
+    double z_rot = ret(2);
+    ROS_INFO_STREAM("angle: " <<ret(2)<<", previous:"<<previous_Z_angle_<<", delta" <<ret(2)-previous_Z_angle_);
+    
+    if (ret(2)-previous_Z_angle_ > 0.1)
+    {
+      ret(2) -= M_PI ;
+      ROS_INFO_STREAM(GREEN<<"bounding z: "<<ret(2));
+    }
+    else if (ret(2)-previous_Z_angle_ < -0.1)
+    {      
+      ret(2) += M_PI;
+      ROS_INFO_STREAM(YELLOW<<"bounding z: "<<ret(2));
+
+    }
+    previous_Z_angle_ = ret(2);
+    
+    return ret;
+  }
+  
+  
+  
+  
+  
+  
+  
 //   Eigen::MatrixXd GTTrajArbitration::solveRiccati(const Eigen::MatrixXd &A,
 //                                                   const Eigen::MatrixXd &B,
 //                                                   const Eigen::MatrixXd &Q,

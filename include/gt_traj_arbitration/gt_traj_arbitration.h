@@ -95,6 +95,8 @@ protected:
   bool new_gain_available_;
   bool arbitrate_;
   bool use_same_reference_;
+  bool use_human_reference_;
+  bool use_robot_reference_;
   
   
   ect::FilteredVectorXd wrench_fitler_;
@@ -207,8 +209,8 @@ protected:
   
   
 
-  Eigen::Vector3d getEulerAngles(const Eigen::Affine3d matrix);
-  Eigen::Vector3d getEulerAnglesBounded(const Eigen::Affine3d matrix);
+//   Eigen::Vector3d getEulerAngles(const Eigen::Affine3d matrix);
+//   Eigen::Vector3d getEulerAnglesBounded(const Eigen::Affine3d matrix);
   
   bool getImpedanceParams(Eigen::Vector6d& M, Eigen::Vector6d& C, Eigen::Vector6d& K );
   Eigen::Vector6d getMask();

@@ -390,6 +390,8 @@ try
   GET_AND_DEFAULT( this->getControllerNh(), "arbitrate", arbitrate_,true);
   
   GET_AND_DEFAULT( this->getControllerNh(), "use_same_reference", use_same_reference_,false);
+  GET_AND_DEFAULT( this->getControllerNh(), "use_robot_reference", use_robot_reference_,false);
+  GET_AND_DEFAULT( this->getControllerNh(), "use_human_reference", use_human_reference_,false);
   
   
 //   B_single_.resize(2*n_dofs_,n_dofs_); B_single_.setZero();
@@ -578,20 +580,8 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     X.resize(12); 
     X.segment(0,3) = cart_pos;
     
-//     X.segment(3,3) = getEulerAnglesBounded( T_b_t );
     X.segment(3,3) = actual_rot.getEulerAnglesBounded( T_b_t );
     X.segment(6,6) = cart_vel_of_t_in_b;
-    
-//     Eigen::Vector3d angles = T_robot_base_targetpose_.linear().eulerAngles(2,1,0);
-//     X.segment(3,3) = angles.reverse();
-//     
-//     Eigen::Vector3d rot = T_b_t.linear().eulerAngles(2, 1, 0);
-// //     X.segment(3) = rot.reverse();
-//     
-//     double rz=rot(0);
-//     X(5) = rz;
-//     X.segment(6,6) = Eigen::MatrixXd::Zero(6,1);
-    
   }
   else
   {
@@ -614,9 +604,9 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     ref_h.resize(6);
     ref_r.resize(6);
     ref_h.segment(0, 3) = T_human_base_targetpose_.translation();
-    ref_h.segment(3, 3) = ref_h_rot.getEulerAngles( T_human_base_targetpose_ );
+    ref_h.segment(3, 3) = ref_h_rot.getEulerAnglesBounded( T_human_base_targetpose_ );
     ref_r.segment(0, 3) = T_robot_base_targetpose_.translation();
-    ref_r.segment(3, 3) = ref_r_rot.getEulerAngles(T_robot_base_targetpose_ );
+    ref_r.segment(3, 3) = ref_r_rot.getEulerAnglesBounded(T_robot_base_targetpose_ );
   }
   else
   {
@@ -625,7 +615,24 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   }
   
   if (use_same_reference_)
-    Eigen::VectorXd ref_r = ref_h;
+  {
+    if(use_human_reference_)
+    {
+      ref_r = ref_h;
+      CNR_INFO_THROTTLE(this->logger(),1.0, "setting ref_r = ref_h ");
+      CNR_INFO_THROTTLE(this->logger(),1.0, "ref_r: " << ref_r.transpose() );
+      CNR_INFO_THROTTLE(this->logger(),1.0, "ref_h: " << ref_h.transpose() );
+    }
+    else if(use_robot_reference_)
+    {
+      ref_h = ref_r;
+      CNR_INFO_THROTTLE(this->logger(),1.0, "setting ref_h = ref_r");
+      CNR_INFO_THROTTLE(this->logger(),1.0, "ref_r: " << ref_r.transpose() );
+      CNR_INFO_THROTTLE(this->logger(),1.0, "ref_h: " << ref_h.transpose() );
+    }
+    else
+      CNR_ERROR(this->logger(),"use_same_reference is " << use_same_reference_<<"but use_robot_reference_ and use_human_reference_ are both false . Ignoring ");
+  }
   
   switch(ctr_switch_)
   {
@@ -907,33 +914,33 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   }
 
   
-  Eigen::Vector3d GTTrajArbitration::getEulerAngles(const Eigen::Affine3d matrix)
-  {
-    return matrix.linear().eulerAngles(2, 1, 0).reverse();
-  }
-  
-  Eigen::Vector3d GTTrajArbitration::getEulerAnglesBounded(const Eigen::Affine3d matrix)
-  {
-    Eigen::Vector3d ret = getEulerAngles(matrix);
-    
-    double z_rot = ret(2);
-    ROS_INFO_STREAM("angle: " <<ret(2)<<", previous:"<<previous_Z_angle_<<", delta" <<ret(2)-previous_Z_angle_);
-    
-    if (ret(2)-previous_Z_angle_ > 0.1)
-    {
-      ret(2) -= M_PI ;
-      ROS_INFO_STREAM(GREEN<<"bounding z: "<<ret(2));
-    }
-    else if (ret(2)-previous_Z_angle_ < -0.1)
-    {      
-      ret(2) += M_PI;
-      ROS_INFO_STREAM(YELLOW<<"bounding z: "<<ret(2));
-
-    }
-    previous_Z_angle_ = ret(2);
-    
-    return ret;
-  }
+//   Eigen::Vector3d GTTrajArbitration::getEulerAngles(const Eigen::Affine3d matrix)
+//   {
+//     return matrix.linear().eulerAngles(2, 1, 0).reverse();
+//   }
+//   
+//   Eigen::Vector3d GTTrajArbitration::getEulerAnglesBounded(const Eigen::Affine3d matrix)
+//   {
+//     Eigen::Vector3d ret = getEulerAngles(matrix);
+//     
+//     double z_rot = ret(2);
+//     ROS_INFO_STREAM("angle: " <<ret(2)<<", previous:"<<previous_Z_angle_<<", delta" <<ret(2)-previous_Z_angle_);
+//     
+//     if (ret(2)-previous_Z_angle_ > 0.1)
+//     {
+//       ret(2) -= M_PI ;
+//       ROS_INFO_STREAM(GREEN<<"bounding z: "<<ret(2));
+//     }
+//     else if (ret(2)-previous_Z_angle_ < -0.1)
+//     {      
+//       ret(2) += M_PI;
+//       ROS_INFO_STREAM(YELLOW<<"bounding z: "<<ret(2));
+// 
+//     }
+//     previous_Z_angle_ = ret(2);
+//     
+//     return ret;
+//   }
   
   
   

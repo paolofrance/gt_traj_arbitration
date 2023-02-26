@@ -32,7 +32,8 @@ GTTrajArbitration::GTTrajArbitration()
 }
 GTTrajArbitration::~GTTrajArbitration()
 {
-  gain_thread_->join();
+  CNR_INFO(this->logger(),"unloading controller");
+//   gain_thread_->join();
 }
 
 
@@ -372,6 +373,18 @@ try
   }
   wrench_gains_ = Eigen::Vector6d (wrench_gains.data());
   
+  GET_AND_DEFAULT( this->getControllerNh(), "set_wrench_zero", set_wrench_zero_,false);
+  if(set_wrench_zero_)
+  {
+    std::vector<double> wrench_zero(6,0);
+    if (!this->getControllerNh().getParam("wrench_zero", wrench_zero))
+    {
+      CNR_ERROR(this->logger(),"wrench_zero not found !  ");
+      CNR_RETURN_FALSE(this->logger());
+    }
+    wrench_zero_ = Eigen::Vector6d (wrench_zero.data());
+  }
+  
   getSSMatrix(n_dofs_,M_inv_,D_,K_,A_,B_);
   
   getWeightMatrix("Qhh",2*n_dofs_,Qhh_);
@@ -417,11 +430,20 @@ try
     }
     ncgt_= new NonCoopGT(n_dofs_, this->m_sampling_period);
     ncgt_->setSysParams(A_,B_);
+    cgt_->updateGTMatrices(0.5);
+    if(!cgt_->getCostMatrices(Qh_,Qr_,Rh_,Rr_))
+    {
+      CNR_ERROR(this->logger(),"cost parameters not set!");
+      return false;
+    }
+
+    ncgt_->setCostsParams(Qh_,Qr_,Rh_,Rr_);
     ncgt_->setCostsParams(Qh_,Qr_,Rh_,Rr_);
     ncgt_->computeNonCooperativeGains();
     ncgt_->getNonCooperativeGains(Kh_nc_,Kr_nc_);    
     ROS_INFO_STREAM("NCGT_gain:\n "<<Kh_nc_);
     ROS_INFO_STREAM("NCGT_gain:\n "<<Kr_nc_);
+    cgt_->updateGTMatrices(alpha_);
   }
 
   
@@ -548,12 +570,12 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     tf::Transform t;
     tf::transformEigenToTF(T_robot_base_targetpose_, t);
     
-    tf::Transform tbt;
-    tf::transformEigenToTF(T_b_t, tbt);
+//     tf::Transform tbt;
+//     tf::transformEigenToTF(T_b_t, tbt);
     
     static tf::TransformBroadcaster br;
     br.sendTransform(tf::StampedTransform(t, ros::Time::now(), "base_link", "robot_target_pose"));
-    br.sendTransform(tf::StampedTransform(tbt, ros::Time::now(), "base_link", "TBT")); 
+//     br.sendTransform(tf::StampedTransform(tbt, ros::Time::now(), "base_link", "TBT")); 
   }
 
   ctr_switch_ = (alpha_<alpha_switch_) ? control_map_.at(switch_control_type_) : control_map_.at(base_control_type_);
@@ -643,6 +665,19 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       cgt_->setPosReference(ref_h,ref_r);
       cgt_->setCurrentState(X);
       control = cgt_->computeControlInputs();
+      Kp = CGT_gain_(n_dofs_,0);
+      Kv = CGT_gain_(n_dofs_,n_dofs_);
+      break;
+    }
+    case GTTrajArbitration::Control::ICGT :
+    {
+      cgt_->computeCooperativeGains(alpha_);
+      CGT_gain_ = cgt_->getCooperativeGains();
+      cgt_->setPosReference(ref_h,ref_r);
+      cgt_->setCurrentState(X);
+      Eigen::VectorXd cc = cgt_->computeControlInputs();
+      control.segment(0,n_dofs_) = cc.segment(n_dofs_,n_dofs_);
+      control.segment(n_dofs_,n_dofs_) = cc.segment(0,n_dofs_);
       Kp = CGT_gain_(n_dofs_,0);
       Kv = CGT_gain_(n_dofs_,n_dofs_);
       break;
@@ -822,13 +857,25 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   {
     if(!w_b_init_)
     {
-      w_b_0_ ( 0 ) = msg->wrench.force.x;
-      w_b_0_ ( 1 ) = msg->wrench.force.y;
-      w_b_0_ ( 2 ) = msg->wrench.force.z;
-      w_b_0_ ( 3 ) = msg->wrench.torque.x;
-      w_b_0_ ( 4 ) = msg->wrench.torque.y;
-      w_b_0_ ( 5 ) = msg->wrench.torque.z;
-
+      
+      if(set_wrench_zero_)
+      {
+        w_b_0_ ( 0 ) = wrench_zero_( 0 );
+        w_b_0_ ( 1 ) = wrench_zero_( 1 );
+        w_b_0_ ( 2 ) = wrench_zero_( 2 );
+        w_b_0_ ( 3 ) = wrench_zero_( 3 );
+        w_b_0_ ( 4 ) = wrench_zero_( 4 );
+        w_b_0_ ( 5 ) = wrench_zero_( 5 );
+      }
+      else
+      {
+        w_b_0_ ( 0 ) = msg->wrench.force.x;
+        w_b_0_ ( 1 ) = msg->wrench.force.y;
+        w_b_0_ ( 2 ) = msg->wrench.force.z;
+        w_b_0_ ( 3 ) = msg->wrench.torque.x;
+        w_b_0_ ( 4 ) = msg->wrench.torque.y;
+        w_b_0_ ( 5 ) = msg->wrench.torque.z;
+      }
       w_b_init_ = true;
     }
     

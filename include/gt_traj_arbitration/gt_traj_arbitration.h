@@ -162,6 +162,7 @@ protected:
   int count_;
   
   bool w_b_init_;
+  bool set_wrench_zero_;
   bool use_filtered_wrench_;
   
   Eigen::Vector6d w_b_filt_;
@@ -200,6 +201,7 @@ protected:
   
   Eigen::Vector6d mask_;
   Eigen::Vector6d wrench_gains_;
+  Eigen::Vector6d wrench_zero_;
   
   double previous_Z_angle_;
   

@@ -879,6 +879,22 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       w_b_init_ = true;
     }
     
+    
+    if(isnan(msg->wrench.force.x  ))
+      ROS_FATAL_STREAM("msg->wrench.force.x  : "<<msg->wrench.force.x  );
+    if(isnan(msg->wrench.force.y  ))
+      ROS_FATAL_STREAM("msg->wrench.force.y  : "<<msg->wrench.force.y  );
+    if(isnan(msg->wrench.force.z  ))
+      ROS_FATAL_STREAM("msg->wrench.force.z  : "<<msg->wrench.force.z  );
+    if(isnan(msg->wrench.torque.x ))
+      ROS_FATAL_STREAM("msg->wrench.torque.x : "<<msg->wrench.torque.x );
+    if(isnan(msg->wrench.torque.y ))
+      ROS_FATAL_STREAM("msg->wrench.torque.y : "<<msg->wrench.torque.y );
+    if(isnan(msg->wrench.torque.z ))
+      ROS_FATAL_STREAM("msg->wrench.torque.z : "<<msg->wrench.torque.z );
+    
+    
+    
     Eigen::Vector6d wrench_s;
     wrench_s( 0 ) = msg->wrench.force.x  - w_b_0_ ( 0 );
     wrench_s( 1 ) = msg->wrench.force.y  - w_b_0_ ( 1 );

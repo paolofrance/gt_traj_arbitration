@@ -665,9 +665,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       cgt_->setPosReference(ref_h,ref_r);
       cgt_->setCurrentState(X);
       control = cgt_->computeControlInputs();
-      
-      ROS_INFO_STREAM(cnr_logger::GREEN()<<control.transpose());
-      
       Kp = CGT_gain_(n_dofs_,0);
       Kv = CGT_gain_(n_dofs_,n_dofs_);
       break;
@@ -681,9 +678,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
       Eigen::VectorXd cc = cgt_->computeControlInputs();
       control.segment(0,n_dofs_) = cc.segment(n_dofs_,n_dofs_);
       control.segment(n_dofs_,n_dofs_) = cc.segment(0,n_dofs_);
-      
-      ROS_INFO_STREAM(cnr_logger::BLUE()<<control.transpose());
-      
       Kp = CGT_gain_(n_dofs_,0);
       Kv = CGT_gain_(n_dofs_,n_dofs_);
       break;

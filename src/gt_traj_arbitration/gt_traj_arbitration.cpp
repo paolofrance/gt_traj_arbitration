@@ -941,6 +941,9 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
 
 //     double grav_force = M_l_*g_;
     
+    for(int i=0;i<6;i++)
+      w_b_(i) = w_b_(i)*wrench_gains_(i);
+    
     base_w.header.frame_id = "ur5_base_link";
     base_w.header.stamp = ros::Time::now();
     base_w.wrench.force.x  = w_b_( 0 );
@@ -955,9 +958,6 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     
     wrench_fitler_.update(wrench);
     w_b_filt_ = wrench_gains_.cwiseProduct( wrench_fitler_.getUpdatedValue() );
-    
-//     for(int i=0;i<6;i++)
-//       w_b_filt_(i) = w_b_filt_(i)*wrench_gains_(i);
     
     CNR_INFO_THROTTLE(this->logger(),5.0, cnr_logger::BLUE()<<"subscribing wrench : "<< w_b_filt_.transpose());
     

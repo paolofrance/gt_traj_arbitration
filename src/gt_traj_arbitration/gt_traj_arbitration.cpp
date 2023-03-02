@@ -1154,6 +1154,10 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   
   void GTTrajArbitration::forceCheck(const std_msgs::BoolConstPtr& msg)
   {
+    CNR_ERROR(this->logger(),"\n\n\n DANGEROUS ERROR\n\n");
+    CNR_ERROR(this->logger(),"CAMERA IS NOT SEEING ANY PLY . ABORTING \n\n");
+    CNR_ERROR(this->logger(),"RESTART NEEDED \n\n");
+    
     std::abort();
   }
   

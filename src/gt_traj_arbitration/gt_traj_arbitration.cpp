@@ -1154,11 +1154,17 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
   
   void GTTrajArbitration::forceCheck(const std_msgs::BoolConstPtr& msg)
   {
-    CNR_ERROR(this->logger(),"\n\n\n DANGEROUS ERROR\n\n");
-    CNR_ERROR(this->logger(),"CAMERA IS NOT SEEING ANY PLY . ABORTING \n\n");
-    CNR_ERROR(this->logger(),"RESTART NEEDED \n\n");
-    
-    std::abort();
+    if(msg->data)
+    {
+      CNR_ERROR(this->logger(),"\n\n");
+      CNR_ERROR(this->logger(),"DANGEROUS ERROR\n\n");
+      CNR_ERROR(this->logger(),"CAMERA IS NOT SEEING ANY PLY . ABORTING \n\n");
+      CNR_ERROR(this->logger(),"RESTART NEEDED \n\n");
+      
+      std::abort();
+    }
+    else
+      CNR_INFO_THROTTLE(this->logger(),10.0,"vision is working fine");
   }
   
 //   bool GTTrajArbitration::updateGTSrv(pbo_service::updateGT::Request  &req,

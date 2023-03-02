@@ -23,6 +23,7 @@
 #include <differential_gt/cgt.h>
 #include <differential_gt/ncgt.h>
 #include <rotations_helper/euler_angles_helper.h>
+#include <std_msgs/Bool.h>
 
 namespace ect = eigen_control_toolbox;
 
@@ -229,6 +230,8 @@ protected:
   void setTargetJointsCallback    (const sensor_msgs::JointStateConstPtr&      msg );
   void setAlpha                   (const std_msgs::Float32ConstPtr&  msg );
   Eigen::VectorXd getReference(const Eigen::Affine3d& targetpose, const Eigen::Affine3d& T_bt);
+  
+  void forceCheck(const std_msgs::BoolConstPtr& msg );
   
   bool eigVecToWrenchMsg(const Eigen::Vector6d& vec, geometry_msgs::Wrench&       msg);
   bool eigToTwistMsgs   (const Eigen::Vector6d& ev , geometry_msgs::TwistStamped& msg);

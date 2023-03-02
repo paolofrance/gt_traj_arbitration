@@ -293,6 +293,8 @@ try
     this->template add_subscriber<std_msgs::Float32>("/alpha",5,boost::bind(&GTTrajArbitration::setAlpha,this,_1), false);
     this->template add_subscriber<geometry_msgs::PoseStamped>("/human_target",5,boost::bind(&GTTrajArbitration::setHumanTargetPoseCallback,this,_1), false);
     
+    this->template add_subscriber<std_msgs::Bool>("/black_depth",5,boost::bind(&GTTrajArbitration::forceCheck,this,_1), false);
+    
     GET_AND_DEFAULT( this->getControllerNh(), "robot_active", robot_active_, true);
     GET_AND_DEFAULT( this->getControllerNh(), "use_cartesian_reference", use_cartesian_reference_, false);
     if(use_cartesian_reference_)
@@ -1150,6 +1152,10 @@ bool GTTrajArbitration::doUpdate(const ros::Time& time, const ros::Duration& per
     }    
   }
   
+  void GTTrajArbitration::forceCheck(const std_msgs::BoolConstPtr& msg)
+  {
+    std::abort();
+  }
   
 //   bool GTTrajArbitration::updateGTSrv(pbo_service::updateGT::Request  &req,
 //                                       pbo_service::updateGT::Response &res)
